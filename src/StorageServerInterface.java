@@ -4,10 +4,10 @@ import java.rmi.RemoteException;
 public interface StorageServerInterface extends Remote {
 
     //Client Methods
-    public void createDir() throws RemoteException;
-    public void createFile() throws RemoteException;
-    public void delDir() throws RemoteException;
-    public void delFile() throws RemoteException;
-    public void getFile() throws RemoteException;
+    public void createDir(String path) throws RemoteException;
+    public void createFile(String path, ByteBuffer bytes) throws RemoteException;
+    public void delDir(String path) throws RemoteException;
+    public void delFile(String path) throws RemoteException;
+    public ByteBuffer getFile(String path) throws RemoteException;
 }
 
