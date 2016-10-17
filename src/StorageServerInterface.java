@@ -1,5 +1,6 @@
 import java.rmi.Remote;
 import java.rmi.RemoteException;
+import java.nio.ByteBuffer;
 
 public interface StorageServerInterface extends Remote {
 
