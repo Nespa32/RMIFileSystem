@@ -24,7 +24,7 @@ public class StorageServer implements StorageServerInterface {
 
     @Override
     public void delDir(String path) {
-	    // @todo
+        // @todo
     }
 
     @Override
@@ -42,19 +42,19 @@ public class StorageServer implements StorageServerInterface {
 
     public static void main(String args[]) {
 
-	    try {
+        try {
 
-	        Registry registry = LocateRegistry.getRegistry();
-    	    MetaServerInterface metaServer = (MetaServerInterface)registry.lookup("MS");
+            Registry registry = LocateRegistry.getRegistry();
+            MetaServerInterface metaServer = (MetaServerInterface)registry.lookup("MS");
 
-	        String serviceId = metaServer.subscribe();
-	        StorageServer s = new StorageServer(serviceId);
+            String serviceId = metaServer.subscribe();
+            StorageServer s = new StorageServer(serviceId);
 
-	        StorageServerInterface storageServer = (StorageServerInterface)UnicastRemoteObject.exportObject(s, 0);
-	        registry.bind(serviceId, storageServer);
-	    }
-	    catch (Exception e) {
-	        // @todo
-	    }
+            StorageServerInterface storageServer = (StorageServerInterface)UnicastRemoteObject.exportObject(s, 0);
+            registry.bind(serviceId, storageServer);
+        }
+        catch (Exception e) {
+            // @todo
+        }
     }
 }

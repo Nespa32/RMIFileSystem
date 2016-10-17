@@ -21,7 +21,7 @@ public class MetaServer implements MetaServerInterface {
     // methods used by Client
     @Override
     public String find(String path) {
-	    return "find";
+        return "find";
     }
 
     @Override
@@ -62,20 +62,20 @@ public class MetaServer implements MetaServerInterface {
 
     public static void main(String args[]) {
 
-	    // setup MetaServer
-	    try {
+        // setup MetaServer
+        try {
 
-	        MetaServer s = new MetaServer();
-    	    MetaServerInterface metaServer = (MetaServerInterface)UnicastRemoteObject.exportObject(s, 0);
-	        Registry registry = LocateRegistry.getRegistry();
-	        registry.bind("MS", metaServer);
+            MetaServer s = new MetaServer();
+            MetaServerInterface metaServer = (MetaServerInterface)UnicastRemoteObject.exportObject(s, 0);
+            Registry registry = LocateRegistry.getRegistry();
+            registry.bind("MS", metaServer);
 
-    	    System.out.println("MetaServer ready");
-	    }
-	    catch (Exception e) {
+            System.out.println("MetaServer ready");
+        }
+        catch (Exception e) {
 
-	        System.err.println("MetaServer: " + e.toString());
-	        e.printStackTrace();
-	    }
+            System.err.println("MetaServer: " + e.toString());
+            e.printStackTrace();
+        }
     }
  }
