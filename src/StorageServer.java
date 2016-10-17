@@ -1,52 +1,60 @@
 import java.rmi.registry.Registry;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.server.UnicastRemoteObject;
+import java.nio.ByteBuffer;
 
 public class StorageServer implements StorageServerInterface {
 
-    //Fields
+    private final String serviceId;
 
-    private String id;
-    
-    //Methods
-    
-    public StorageServer() {}
-
-    @Override
-    public void createDir() {
-	
+    public StorageServer(String _serviceId)
+    {
+        serviceId = _serviceId;
     }
 
     @Override
-    public void createFile() {
-	
+    public void createDir(String path) {
+        // @todo
     }
 
     @Override
-    public void delDir() {
-	
+    public void createFile(String path, ByteBuffer bytes) {
+        // @todo
     }
 
     @Override
-    public void getFile() {
+    public void delDir(String path) {
+        // @todo
+    }
 
+    @Override
+    public void delFile(String path) {
+        // @todo
+    }
+
+    @Override
+    public ByteBuffer getFile(String path) {
+
+        ByteBuffer b = null;
+        // @todo
+        return b;
     }
 
     public static void main(String args[]) {
 
-	try {
+        try {
 
-	    Registry registry = LocateRegistry.getRegistry();
-	    MetaServerInterface stub = (MetaServerInterface)registry.lookup("MS");
+            Registry registry = LocateRegistry.getRegistry();
+            MetaServerInterface metaServer = (MetaServerInterface)registry.lookup("MS");
 
-	    String id = stub.subscribe();
-	    StorageServer s = new StorageServer(id);
+            String serviceId = metaServer.subscribe();
+            StorageServer s = new StorageServer(serviceId);
 
-	    StorageServerInterface storageStub = UnitcastRemoteObject.exportObject(s, 0);
-	    registry.bind(id, storageStub);
-	}
-	catch (Exception e) {
-	    //Handling exception
-	}
+            StorageServerInterface storageServer = (StorageServerInterface)UnicastRemoteObject.exportObject(s, 0);
+            registry.bind(serviceId, storageServer);
+        }
+        catch (Exception e) {
+            // @todo
+        }
     }
 }

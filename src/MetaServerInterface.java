@@ -8,7 +8,7 @@ public interface MetaServerInterface extends Remote {
     public List<String> list(String path) throws RemoteException;
     // Storage Server Methods
     public String subscribe() throws RemoteException;
-    public void unsubscribe() throws RemoteException;
+    public void unsubscribe(String s) throws RemoteException;
     public void notifyItemAdd(String path) throws RemoteException;
     public void notifyItemDelete(String path) throws RemoteException;
 }
