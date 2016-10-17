@@ -1,9 +1,13 @@
-import java.rmi.registry.Registry;
-import java.rmi.registry.LocateRegistry;
 import java.rmi.Remote;
 import java.rmi.RemoteException;
-import java.rmi.server.UnicastRemoteObject;
 
 public interface MetaServerInterface extends Remote {
-    public String Find() throws RemoteException;
+    // Client Methods
+    public String find() throws RemoteException;
+    public List<String> list() throws RemoteException;
+    // Storage Server Methods
+    public String subscribe() throws RemoteException;
+    public void unsubscribe() throws RemoteException;
+    public void notifyItemAdd(String path) throws RemoteException;
+    public void notifyItemDelete(String path) throws RemoteException;
 }

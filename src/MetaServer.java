@@ -1,19 +1,41 @@
-
-
 import java.rmi.registry.Registry;
 import java.rmi.registry.LocateRegistry;
-import java.rmi.Remote;
-import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
 
 
 public class MetaServer implements MetaServerInterface {
+
+    
     
     public MetaServer() { }
 
+    // Client Methods
+    
     @Override
-    public String Find() {
+    public String find() {
 	return "fInD";
+    }
+
+    @Override
+    public List<String>  list() {
+    }
+
+    // Storage Server Methods
+
+    @Override
+    public String subscribe() {
+    }
+
+    @Override
+    public void unsubscribe() {
+    }
+
+    @Override
+    public void notifyItemAdd(String path) {
+    }
+
+    @Override
+    public void notifyItemDelete(String path) {
     }
     
     public static void main(String args[]) {
@@ -24,7 +46,7 @@ public class MetaServer implements MetaServerInterface {
 	    MetaServer s = new MetaServer();
 	    MetaServerInterface stub = (MetaServerInterface)UnicastRemoteObject.exportObject(s, 0);
 	    Registry registry = LocateRegistry.getRegistry();
-	    registry.bind("Find", stub);
+	    registry.bind("MS", stub);
 	    System.err.println("MetaServer ready");
 	}
 	catch (Exception e) {
@@ -34,15 +56,5 @@ public class MetaServer implements MetaServerInterface {
 	}
 
 	// test availability
-	try {
-	    
-	    Registry registry = LocateRegistry.getRegistry();
-	    MetaServerInterface stub = (MetaServerInterface)registry.lookup("Find");
-	    String response = stub.Find();
-	    System.out.println("Response: " + response);
-	}
-	catch (Exception e) {
-	    // @todo
-	}
     }
  }
