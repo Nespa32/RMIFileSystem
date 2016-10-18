@@ -19,7 +19,7 @@ rmiregistry &
 
 # compile
 echo "Compiling..."
-javac MetaServer.java MetaServerInterface.java Client.java
+javac MetaServer.java MetaServerInterface.java
 
 # launch
 echo "Launching background MetaServer..."

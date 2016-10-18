@@ -102,7 +102,7 @@ public class MetaServer implements MetaServerInterface {
 
             String initialMountPath = "/";
             String[] splitPath = mountPath.split("/");
-            for (int i = 0; i < splitPath.length - 1; ++i)
+            for (int i = 1; i < splitPath.length - 1; ++i)
                 initialMountPath += splitPath[i] + "/";
 
             FileSystemObject obj = getObjectForPath(initialMountPath);
@@ -151,9 +151,9 @@ public class MetaServer implements MetaServerInterface {
         boolean isDirectory = path.endsWith("/");
         String name = splitPath[splitPath.length - 1];
 
-        String subPath = "";
-        for (int i = 0; i < splitPath.length - 1; ++i)
-            subPath += "/" + splitPath[i];
+        String subPath = "/";
+        for (int i = 1; i < splitPath.length - 1; ++i)
+            subPath += splitPath[i] + "/";
 
         FileSystemObject obj = getObjectForPath(subPath);
         if (obj == null)
@@ -180,8 +180,9 @@ public class MetaServer implements MetaServerInterface {
         String[] splitPath = path.split("/");
 
         FileSystemObject obj = rootObj;
-        for (String s : splitPath)
+        for (int i = 1; i < splitPath.length; ++i)
         {
+            String s = splitPath[i];
             obj = obj.getChild(s);
             if (obj == null)
                 break;
