@@ -7,8 +7,9 @@ public interface MetaServerInterface extends Remote {
     public String find(String path) throws RemoteException;
     public List<String> list(String path) throws RemoteException;
     // Storage Server Methods
-    public String subscribe() throws RemoteException;
-    public void unsubscribe(String s) throws RemoteException;
+    // returns new Storage Server ID, used in RMI registry
+    public String addStorageServer(String mountPath) throws RemoteException;
+    public void delStorageServer(String mountPath) throws RemoteException;
     public void notifyItemAdd(String path) throws RemoteException;
     public void notifyItemDelete(String path) throws RemoteException;
 }

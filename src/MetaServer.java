@@ -27,16 +27,22 @@ public class MetaServer implements MetaServerInterface {
         }
     }
 
-    // StorageServer ID -> Filesystem Path
-    private Map<String, String> storageServerMap;
+    // StorageServer ID -> FileSystemObject
+    private Map<String, FileSystemObject> storageServerToObj;
+    // FileSystemObject -> StorageServer ID
+    private Map<FileSystemObject, String> objToStorageServer;
+    // root directory, i.e '/'
     private FileSystemObject rootObj;
-    private int nextStorageServer;
+    // StorageServer ID counter
+    private int nextStorageServerId;
 
     public MetaServer()
     {
-        storageServerMap = new HashMap<String, String>();
+        storageServerToObj = new HashMap<String, FileSystemObject>();
+        objToStorageServer = new HashMap<FileSystemObject, String>();
+
         rootObj = new FileSystemObject(null, "/", true);
-        nextStorageServer = 0;
+        nextStorageServerId = 0;
     }
 
 
@@ -44,34 +50,91 @@ public class MetaServer implements MetaServerInterface {
     @Override
     public String find(String path) throws RemoteException {
 
-        // @todo
-        return "find";
+        FileSystemObject obj = getObjectForPath(path);
+        if (obj == null)
+            throw new RemoteException("Object at path <" + path + "> not found");
+
+        String serviceId = getStorageServerForObject(obj);
+        if (serviceId == null)
+            throw new RemoteException("No StorageServer available for <" + path + ">");
+
+        return serviceId;
     }
 
     @Override
-    public List<String> list(String path) {
-        // @todo
-        List<String> l = null;
-        return l;
+    public List<String> list(String path) throws RemoteException{
+
+        FileSystemObject obj = getObjectForPath(path);
+        if (obj == null)
+            throw new RemoteException("Object at path <" + path + "> not found");
+
+        if (obj.isDirectory() == false)
+            throw new RemoteException("Object at path <" + path + "> is not a directory");
+
+        Set<String> set = obj.getChildren();
+        return new ArrayList<String>(set);
     }
 
     // methods used by StorageServer
     @Override
-    public String subscribe() {
+    public String addStorageServer(String mountPath) throws RemoteException {
 
-        String s = String.format("SS_%d", nextStorageServer);
-        nextStorageServer += 1;
-        // @todo: how to distribute (?)
-        storageServerMap.put(s, "/");
+        String s = String.format("SS_%d", nextStorageServerId);
+        nextStorageServerId += 1;
 
-        return s;
+        boolean isRootPath = mountPath == "/";
+        boolean isRootSetup = objToStorageServer.containsKey(rootObj);
+        if (isRootPath) {
+            if (isRootSetup)
+                throw new RemoteException("Root StorageServer is already setup");
+
+            storageServerToObj.put(s, rootObj);
+            objToStorageServer.put(rootObj, s);
+            return s;
+        }
+        else {
+            // root StorageServer has to be the first to mount, others need to retry
+            if (isRootSetup == false)
+                throw new RemoteException("Missing Root StorageServer");
+
+            if (getObjectForPath(mountPath) != null)
+                throw new RemoteException("Path <" + mountPath + "> already exists");
+
+            String initialMountPath = "/";
+            String[] splitPath = mountPath.split("/");
+            for (int i = 0; i < splitPath.length - 1; ++i)
+                initialMountPath += splitPath[i] + "/";
+
+            FileSystemObject obj = getObjectForPath(initialMountPath);
+            if (obj == null)
+                throw new RemoteException("Path <" + initialMountPath + "> not found");
+
+            // create new StorageServer root
+            String name = splitPath[splitPath.length - 1];
+            boolean isDirectory = true;
+            FileSystemObject child = new FileSystemObject(obj, name, isDirectory);
+            obj.addChild(child);
+
+            storageServerToObj.put(s, child);
+            objToStorageServer.put(child, s);
+            return s;
+        }
     }
 
     @Override
-    public void unsubscribe(String s) throws RemoteException {
-        String path = storageServerMap.remove(s);
-        if (path == null)
-            throw new RemoteException("StorageServer " + s + " not found!");
+    public void delStorageServer(String mountPath) throws RemoteException {
+
+        storageServerToObj.remove(mountPath);
+        for (Map.Entry<FileSystemObject, String> entry : objToStorageServer.entrySet()) {
+            String s = entry.getValue();
+            if (s == mountPath) {
+                storageServerToObj.remove(mountPath);
+                objToStorageServer.remove(entry.getKey());
+                return;
+            }
+        }
+
+        throw new RemoteException("StorageServer mountPath " + mountPath + " not found!");
     }
 
     @Override
@@ -97,6 +160,7 @@ public class MetaServer implements MetaServerInterface {
             throw new RemoteException("Couldn't find parent directory for item");
 
         FileSystemObject child = new FileSystemObject(obj, name, isDirectory);
+        obj.addChild(child);
     }
 
     @Override
@@ -111,7 +175,6 @@ public class MetaServer implements MetaServerInterface {
         obj.getParent().removeChild(obj);
     }
 
-
     private FileSystemObject getObjectForPath(String path) {
 
         String[] splitPath = path.split("/");
@@ -125,6 +188,20 @@ public class MetaServer implements MetaServerInterface {
         }
 
         return obj;
+    }
+
+    private String getStorageServerForObject(FileSystemObject obj) {
+
+        String storageServerId = null;
+        while (obj != null) {
+            storageServerId = objToStorageServer.get(obj);
+            if (storageServerId == null)
+                obj = obj.getParent(); // obj will belong to parent's StorageServer
+            else
+                break; // found the closest StorageServer
+        }
+
+        return storageServerId;
     }
 }
 
@@ -156,6 +233,11 @@ class FileSystemObject implements Comparable<FileSystemObject>
         children.remove(child.getName());
     }
 
+    public Set<String> getChildren() {
+        Set<String> set = children.keySet();
+        return set;
+    }
+
     public FileSystemObject getChild(String name) {
 
         FileSystemObject obj = children.get(name);
@@ -168,5 +250,9 @@ class FileSystemObject implements Comparable<FileSystemObject>
 
     public String getName() {
         return name;
+    }
+
+    public boolean isDirectory() {
+        return isDirectory;
     }
 }
