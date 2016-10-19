@@ -34,6 +34,8 @@ public class IntegrationTest
 
         // setup a fake directory tree
         try {
+            // fake StorageServer, won't actually exist
+            metaServer.addStorageServer("/");
             metaServer.notifyItemAdd("/help.txt");
             metaServer.notifyItemAdd("/b/");
             metaServer.notifyItemAdd("/temp/");
@@ -57,6 +59,10 @@ public class IntegrationTest
             System.out.println(Arrays.toString(s1.toArray()));
             List<String> s2 = metaServer.list("/temp/");
             System.out.println(Arrays.toString(s2.toArray()));
+            String s3 = metaServer.find("/temp");
+            System.out.println(s3);
+            String s4 = metaServer.find("/temp/a");
+            System.out.println(s4);
         }
         catch (Exception e) {
             System.err.println("Exception in MetaServer tests: " + e.toString());

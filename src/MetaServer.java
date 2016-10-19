@@ -82,7 +82,7 @@ public class MetaServer implements MetaServerInterface {
         String s = String.format("SS_%d", nextStorageServerId);
         nextStorageServerId += 1;
 
-        boolean isRootPath = mountPath == "/";
+        boolean isRootPath = mountPath.equals("/");
         boolean isRootSetup = objToStorageServer.containsKey(rootObj);
         if (isRootPath) {
             if (isRootSetup)
