@@ -3,7 +3,6 @@ import java.util.*;
 import java.rmi.registry.Registry;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.server.UnicastRemoteObject;
-import java.rmi.Remote;
 import java.rmi.RemoteException;
 
 public class MetaServer implements MetaServerInterface {
@@ -27,8 +26,6 @@ public class MetaServer implements MetaServerInterface {
         }
     }
 
-    // StorageServer ID -> FileSystemObject
-    private Map<String, FileSystemObject> storageServerToObj;
     // FileSystemObject -> StorageServer ID
     private Map<FileSystemObject, String> objToStorageServer;
     // root directory, i.e '/'
@@ -38,8 +35,7 @@ public class MetaServer implements MetaServerInterface {
 
     public MetaServer()
     {
-        storageServerToObj = new HashMap<String, FileSystemObject>();
-        objToStorageServer = new HashMap<FileSystemObject, String>();
+        objToStorageServer = new HashMap<>();
 
         rootObj = new FileSystemObject(null, "/", true);
         nextStorageServerId = 0;
@@ -72,7 +68,7 @@ public class MetaServer implements MetaServerInterface {
             throw new RemoteException("Object at path <" + path + "> is not a directory");
 
         Set<String> set = obj.getChildren();
-        return new ArrayList<String>(set);
+        return new ArrayList<>(set);
     }
 
     // methods used by StorageServer
@@ -88,7 +84,6 @@ public class MetaServer implements MetaServerInterface {
             if (isRootSetup)
                 throw new RemoteException("Root StorageServer is already setup");
 
-            storageServerToObj.put(s, rootObj);
             objToStorageServer.put(rootObj, s);
             return s;
         }
@@ -115,7 +110,6 @@ public class MetaServer implements MetaServerInterface {
             FileSystemObject child = new FileSystemObject(obj, name, isDirectory);
             obj.addChild(child);
 
-            storageServerToObj.put(s, child);
             objToStorageServer.put(child, s);
             return s;
         }
@@ -124,11 +118,9 @@ public class MetaServer implements MetaServerInterface {
     @Override
     public void delStorageServer(String mountPath) throws RemoteException {
 
-        storageServerToObj.remove(mountPath);
         for (Map.Entry<FileSystemObject, String> entry : objToStorageServer.entrySet()) {
             String s = entry.getValue();
             if (s == mountPath) {
-                storageServerToObj.remove(mountPath);
                 objToStorageServer.remove(entry.getKey());
                 return;
             }
@@ -223,7 +215,7 @@ class FileSystemObject implements Comparable<FileSystemObject>
         this.parent = parent;
         this.name = name;
         this.isDirectory = isDirectory;
-        this.children = new TreeMap<String, FileSystemObject>();
+        this.children = new TreeMap<>();
     }
 
     public void addChild(FileSystemObject child) {
