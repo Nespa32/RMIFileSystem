@@ -2,6 +2,9 @@
 # exit on error
 set -e
 
+mkdir -p build
+cd build
+
 # kill previous rmiregistry instance
 echo "Killing rmiregitry..."
 pkill rmiregistry || true
@@ -19,10 +22,15 @@ rmiregistry &
 
 # compile
 echo "Compiling..."
-javac MetaServer.java MetaServerInterface.java
+
+SRC_DIR="../src/"
+BUILD_DIR="."
+
+javac -d $BUILD_DIR ${SRC_DIR}/MetaServer.java \
+        ${SRC_DIR}/MetaServerInterface.java
 
 # launch
 echo "Launching background MetaServer..."
-java MetaServer &
+java -cp ${SRC_DIR} MetaServer &
 
 echo "Exiting script..."

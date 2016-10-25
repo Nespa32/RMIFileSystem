@@ -32,6 +32,22 @@ public class IntegrationTest
             return;
         }
 
+        // setup a StorageServer
+        /*try {
+
+            MetaServerInterface metaServer = (MetaServerInterface)registry.lookup("MS");
+
+            String serviceId = metaServer.addStorageServer(remoteMountPath);
+            StorageServer s = new StorageServer(metaServer, localDirPath, remoteMountPath);
+
+            StorageServerInterface storageServer = (StorageServerInterface)UnicastRemoteObject.exportObject(s, 0);
+            registry.bind(serviceId, storageServer);
+        }
+        catch (Exception e) {
+            System.err.println("StorageServer setup exception: " + e.toString());
+            return;
+        }*/
+
         // setup a fake directory tree
         try {
             // fake StorageServer, won't actually exist

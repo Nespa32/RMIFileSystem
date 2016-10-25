@@ -3,6 +3,9 @@
 # exit on error
 set -e
 
+mkdir -p build
+cd build
+
 # kill previous rmiregistry instance
 echo "Killing rmiregistry..."
 pkill rmiregistry || true
@@ -19,10 +22,16 @@ rmiregistry &
 
 # compile
 echo "Compiling..."
-javac IntegrationTest.java MetaServer.java MetaServerInterface.java
+
+SRC_DIR="../src/"
+BUILD_DIR="."
+
+javac -d $BUILD_DIR ${SRC_DIR}/IntegrationTest.java \
+        ${SRC_DIR}/MetaServer.java \
+        ${SRC_DIR}/MetaServerInterface.java
 
 # launch
 echo "Launching IntegrationTest..."
-java IntegrationTest
+java -cp ${SRC_DIR} IntegrationTest
 
 echo "Exiting script..."

@@ -12,6 +12,47 @@ import java.util.*;
 
 public class StorageServer implements StorageServerInterface {
 
+    public static void main(String args[]) {
+
+        if (args.length < 2) {
+            printUsage();
+            return;
+        }
+
+        String localDirPath = args[0];
+        String remoteMountPath = args[1];
+
+        // check if local dir exists
+        File localDir = new File(localDirPath);
+        if (localDir.exists() == false || localDir.isDirectory() == false) {
+
+            System.err.println("LocalDirPath <" + localDirPath + "> not found" +
+                    " or is not a dir");
+            printUsage();
+            return;
+        }
+
+        try {
+
+            Registry registry = LocateRegistry.getRegistry();
+            MetaServerInterface metaServer = (MetaServerInterface)registry.lookup("MS");
+
+            String serviceId = metaServer.addStorageServer(remoteMountPath);
+            StorageServer s = new StorageServer(metaServer, localDirPath, remoteMountPath);
+
+            StorageServerInterface storageServer = (StorageServerInterface)UnicastRemoteObject.exportObject(s, 0);
+            registry.bind(serviceId, storageServer);
+        }
+        catch (Exception e) {
+            System.err.println("StorageServer init exception: " + e.toString());
+            e.printStackTrace();
+        }
+    }
+
+    public static void printUsage() {
+        System.out.println("Usage: java StorageServer localDirPath remoteMountPath");
+    }
+
     private final MetaServerInterface metaServer;
     private final String localDirPath;
     private final String remoteMountPath;
@@ -221,46 +262,5 @@ public class StorageServer implements StorageServerInterface {
     private String getLocalPath(String remotePath) {
 
         return remotePath.replaceFirst("^" + remoteMountPath, localDirPath);
-    }
-
-    public static void main(String args[]) {
-
-        if (args.length < 2) {
-            printUsage();
-            return;
-        }
-
-        String localDirPath = args[0];
-        String remoteMountPath = args[1];
-
-        // check if local dir exists
-        File localDir = new File(localDirPath);
-        if (localDir.exists() == false || localDir.isDirectory() == false) {
-
-            System.err.println("LocalDirPath <" + localDirPath + "> not found" +
-                " or is not a dir");
-            printUsage();
-            return;
-        }
-
-        try {
-
-            Registry registry = LocateRegistry.getRegistry();
-            MetaServerInterface metaServer = (MetaServerInterface)registry.lookup("MS");
-
-            String serviceId = metaServer.addStorageServer(remoteMountPath);
-            StorageServer s = new StorageServer(metaServer, localDirPath, remoteMountPath);
-
-            StorageServerInterface storageServer = (StorageServerInterface)UnicastRemoteObject.exportObject(s, 0);
-            registry.bind(serviceId, storageServer);
-        }
-        catch (Exception e) {
-            System.err.println("StorageServer init exception: " + e.toString());
-            e.printStackTrace();
-        }
-    }
-
-    public static void printUsage() {
-        System.out.println("Usage: java StorageServer localDirPath remoteMountPath");
     }
 }
