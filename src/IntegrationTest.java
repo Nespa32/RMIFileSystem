@@ -33,10 +33,12 @@ public class IntegrationTest
         }
 
         // setup a StorageServer
-        /*try {
+        try {
 
-            MetaServerInterface metaServer = (MetaServerInterface)registry.lookup("MS");
+            metaServer = (MetaServerInterface)registry.lookup("MS");
 
+            String remoteMountPath = "/";
+            String localDirPath = "data/";
             String serviceId = metaServer.addStorageServer(remoteMountPath);
             StorageServer s = new StorageServer(metaServer, localDirPath, remoteMountPath);
 
@@ -46,12 +48,12 @@ public class IntegrationTest
         catch (Exception e) {
             System.err.println("StorageServer setup exception: " + e.toString());
             return;
-        }*/
+        }
 
         // setup a fake directory tree
         try {
             // fake StorageServer, won't actually exist
-            metaServer.addStorageServer("/");
+            /*
             metaServer.notifyItemAdd("/help.txt");
             metaServer.notifyItemAdd("/b/");
             metaServer.notifyItemAdd("/temp/");
@@ -63,6 +65,7 @@ public class IntegrationTest
             metaServer.notifyItemAdd("/am_i_human/");
             metaServer.notifyItemAdd("/am_i_human/or/");
             metaServer.notifyItemAdd("/am_i_human/or/am_i_dancer");
+            */
         }
         catch (Exception e) {
             System.err.println("Exception in MetaServer tree setup: " + e.toString());

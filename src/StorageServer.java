@@ -68,7 +68,7 @@ public class StorageServer implements StorageServerInterface {
             throw new Exception("LocalDirPath <" + localDirPath + "> not found/not dir");
 
         this.metaServer = metaServer;
-        this.localDirPath = localDirPath;
+        this.localDirPath = localDir.getAbsolutePath();
         this.remoteMountPath = remoteMountPath;
 
         synchronizeMetaServer();
@@ -218,27 +218,34 @@ public class StorageServer implements StorageServerInterface {
 
     private void synchronizeMetaServer() {
 
+        System.out.println("synchronizeMetaServer call");
         // BFS through the directory tree
         LinkedList<File> files = new LinkedList<>();
         files.addLast(new File(localDirPath));
 
-        while (files.isEmpty()) {
+        while (!files.isEmpty()) {
             File f = files.removeFirst();
+            String localPath = f.getAbsolutePath();
 
             if (f.isDirectory()) {
-                String[] l = f.list();
-                for (String s : l)
-                    files.addLast(new File(s));
+                if (localPath.endsWith("/") == false)
+                    localPath += "/";
+
+                String[] ls = f.list();
+                for (String fileStr : ls) {
+                    files.addLast(new File(localPath + fileStr));
+                }
             }
 
-            String s = f.getPath();
-            s.replaceFirst("^" + localDirPath, remoteMountPath);
+            // calc remote path
+            String remotePath = localPath.replaceFirst("^" + localDirPath, remoteMountPath);
+            // remove double // (can happen during path conversion)
+            remotePath = remotePath.replaceAll("//", "/");
 
             try {
-                System.out.println("Pushing <" + s + ">");
-                metaServer.notifyItemAdd(s);
-            }
-            catch (RemoteException e) {
+                System.out.println("Pushing <" + remotePath + ">");
+                metaServer.notifyItemAdd(remotePath);
+            } catch (RemoteException e) {
                 System.err.println("synchronizeMetaServer - RemoteException: " + e.toString());
             }
         }
