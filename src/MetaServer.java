@@ -1,4 +1,5 @@
 
+import java.rmi.NotBoundException;
 import java.util.*;
 import java.rmi.registry.Registry;
 import java.rmi.registry.LocateRegistry;
@@ -12,10 +13,14 @@ public class MetaServer implements MetaServerInterface {
         // setup MetaServer
         try {
 
+            String metaServerId = "MS";
             MetaServer s = new MetaServer();
             MetaServerInterface metaServer = (MetaServerInterface)UnicastRemoteObject.exportObject(s, 0);
             Registry registry = LocateRegistry.getRegistry();
-            registry.bind("MS", metaServer);
+            registry.bind(metaServerId, metaServer);
+
+            // remove from Registry on shutdown
+            Runtime.getRuntime().addShutdownHook(new MetaServerShutdownHook(registry, metaServerId));
 
             System.out.println("MetaServer ready");
         }
@@ -40,7 +45,6 @@ public class MetaServer implements MetaServerInterface {
         rootObj = new FileSystemObject(null, "/", true);
         nextStorageServerId = 0;
     }
-
 
     // methods used by Client
     @Override
@@ -118,15 +122,20 @@ public class MetaServer implements MetaServerInterface {
     @Override
     public void delStorageServer(String mountPath) throws RemoteException {
 
+        FileSystemObject mountObj = getObjectForPath(mountPath);
+        if (mountObj == null)
+            throw new RemoteException("FileSystemObject for mountPath <" + mountPath + "> not found!");
+
         for (Map.Entry<FileSystemObject, String> entry : objToStorageServer.entrySet()) {
-            String s = entry.getValue();
-            if (s == mountPath) {
+            FileSystemObject obj = entry.getKey();
+
+            if (mountObj == obj) {
                 objToStorageServer.remove(entry.getKey());
                 return;
             }
         }
 
-        throw new RemoteException("StorageServer mountPath " + mountPath + " not found!");
+        throw new RemoteException("FileSystemObject for mountPath" + mountPath + " does not mount a StorageServer");
     }
 
     @Override
@@ -195,6 +204,27 @@ public class MetaServer implements MetaServerInterface {
         }
 
         return storageServerId;
+    }
+}
+
+class MetaServerShutdownHook extends Thread {
+
+    private final Registry registry;
+    private final String metaServerId;
+
+    public MetaServerShutdownHook(Registry registry, String metaServerId) {
+        this.registry = registry;
+        this.metaServerId = metaServerId;
+    }
+
+    @Override
+    public void run() {
+        try {
+            registry.unbind(metaServerId);
+        }
+        catch (Exception e) {
+            System.out.println("MetaServerShutdownHook - Exception: " + e.toString());
+        }
     }
 }
 

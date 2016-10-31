@@ -35,15 +35,9 @@ public class IntegrationTest
         // setup a StorageServer
         try {
 
-            metaServer = (MetaServerInterface)registry.lookup("MS");
-
-            String remoteMountPath = "/";
             String localDirPath = "data/";
-            String serviceId = metaServer.addStorageServer(remoteMountPath);
-            StorageServer s = new StorageServer(metaServer, localDirPath, remoteMountPath);
-
-            StorageServerInterface storageServer = (StorageServerInterface)UnicastRemoteObject.exportObject(s, 0);
-            registry.bind(serviceId, storageServer);
+            String remoteMountPath = "/";
+            StorageServer.launchStorageServer(localDirPath, remoteMountPath);
         }
         catch (Exception e) {
             System.err.println("StorageServer setup exception: " + e.toString());

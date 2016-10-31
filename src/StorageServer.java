@@ -9,6 +9,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.FileOutputStream;
 import java.util.*;
+import java.lang.Thread;
+import java.lang.Runtime;
 
 public class StorageServer implements StorageServerInterface {
 
@@ -22,31 +24,33 @@ public class StorageServer implements StorageServerInterface {
         String localDirPath = args[0];
         String remoteMountPath = args[1];
 
-        // check if local dir exists
-        File localDir = new File(localDirPath);
-        if (localDir.exists() == false || localDir.isDirectory() == false) {
-
-            System.err.println("LocalDirPath <" + localDirPath + "> not found" +
-                    " or is not a dir");
-            printUsage();
-            return;
-        }
-
         try {
-
-            Registry registry = LocateRegistry.getRegistry();
-            MetaServerInterface metaServer = (MetaServerInterface)registry.lookup("MS");
-
-            String serviceId = metaServer.addStorageServer(remoteMountPath);
-            StorageServer s = new StorageServer(metaServer, localDirPath, remoteMountPath);
-
-            StorageServerInterface storageServer = (StorageServerInterface)UnicastRemoteObject.exportObject(s, 0);
-            registry.bind(serviceId, storageServer);
+            launchStorageServer(localDirPath, remoteMountPath);
         }
-        catch (Exception e) {
+        catch(Exception e) {
             System.err.println("StorageServer init exception: " + e.toString());
             e.printStackTrace();
         }
+    }
+
+    public static void launchStorageServer(String localDirPath, String remoteMountPath) throws Exception {
+
+        // check if local dir exists
+        File localDir = new File(localDirPath);
+        if (localDir.exists() == false || localDir.isDirectory() == false)
+            throw new Exception("LocalDirPath <" + localDirPath + "> not found");
+
+        Registry registry = LocateRegistry.getRegistry();
+        MetaServerInterface metaServer = (MetaServerInterface)registry.lookup("MS");
+
+        String serviceId = metaServer.addStorageServer(remoteMountPath);
+        StorageServer s = new StorageServer(metaServer, localDirPath, remoteMountPath);
+
+        StorageServerInterface storageServer = (StorageServerInterface)UnicastRemoteObject.exportObject(s, 0);
+        registry.bind(serviceId, storageServer);
+
+        // remove from Registry on shutdown
+        Runtime.getRuntime().addShutdownHook(new StorageServerShutdownHook(registry, s, serviceId));
     }
 
     public static void printUsage() {
@@ -58,7 +62,7 @@ public class StorageServer implements StorageServerInterface {
     private final String remoteMountPath;
 
     public StorageServer(MetaServerInterface metaServer, String localDirPath,
-        String remoteMountPath) throws Exception
+                         String remoteMountPath) throws Exception
     {
         assert(metaServer != null);
 
@@ -74,10 +78,10 @@ public class StorageServer implements StorageServerInterface {
         synchronizeMetaServer();
     }
 
-    @Override
-    public void finalize() {
+    public void close() {
 
         try {
+            // will also call unbind() on the registry
             metaServer.delStorageServer(remoteMountPath);
         }
         catch (RemoteException e) {
@@ -269,5 +273,30 @@ public class StorageServer implements StorageServerInterface {
     private String getLocalPath(String remotePath) {
 
         return remotePath.replaceFirst("^" + remoteMountPath, localDirPath);
+    }
+}
+
+class StorageServerShutdownHook extends Thread {
+
+    private final Registry registry;
+    private final StorageServer s;
+    private final String storageServerId;
+
+    public StorageServerShutdownHook(Registry registry, StorageServer s,
+                                     String storageServerId) {
+        this.registry = registry;
+        this.s = s;
+        this.storageServerId = storageServerId;
+    }
+
+    @Override
+    public void run() {
+        s.close();
+        try {
+            registry.unbind(storageServerId);
+        }
+        catch (Exception e) {
+            System.out.println("StorageServerShutdownHook - Exception: " + e.toString());
+        }
     }
 }
