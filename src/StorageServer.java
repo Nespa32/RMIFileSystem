@@ -2,7 +2,6 @@ import java.rmi.RemoteException;
 import java.rmi.registry.Registry;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.server.UnicastRemoteObject;
-import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.io.File;
@@ -71,8 +70,13 @@ public class StorageServer implements StorageServerInterface {
         if (localDir.exists() == false || localDir.isDirectory() == false)
             throw new Exception("LocalDirPath <" + localDirPath + "> not found/not dir");
 
+        localDirPath = localDir.getAbsolutePath();
+        // local dir might be missing trailing '/' after fetching absolute path
+        if (localDirPath.endsWith("/") == false)
+            localDirPath += "/";
+
         this.metaServer = metaServer;
-        this.localDirPath = localDir.getAbsolutePath();
+        this.localDirPath = localDirPath;
         this.remoteMountPath = remoteMountPath;
 
         synchronizeMetaServer();
@@ -111,7 +115,7 @@ public class StorageServer implements StorageServerInterface {
     }
 
     @Override
-    public void createFile(String remotePath, ByteBuffer bytes) throws RemoteException {
+    public void createFile(String remotePath, byte[] bytes) throws RemoteException {
 
         if (remotePath.endsWith("/") == true)
             throw new RemoteException("Path ends with '/', it's a directory");
@@ -130,7 +134,7 @@ public class StorageServer implements StorageServerInterface {
                 metaServer.notifyItemAdd(remotePath);
 
                 FileOutputStream fos = new FileOutputStream(localPath);
-                fos.write(bytes.array());
+                fos.write(bytes);
                 fos.close();
 
             } else {
@@ -195,7 +199,7 @@ public class StorageServer implements StorageServerInterface {
     }
 
     @Override
-    public ByteBuffer getFile(String remotePath) throws RemoteException {
+    public byte[] getFile(String remotePath) throws RemoteException {
 
         if (remotePath.endsWith("/") == true)
             throw new RemoteException("Path ends with '/', it's a directory");
@@ -211,8 +215,7 @@ public class StorageServer implements StorageServerInterface {
         Path path = file.toPath();
         try {
             byte[] data = Files.readAllBytes(path);
-            ByteBuffer buf = ByteBuffer.wrap(data);
-            return buf;
+            return data;
         }
         catch (IOException e) {
 
