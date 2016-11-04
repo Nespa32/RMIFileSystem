@@ -68,13 +68,8 @@ public class IntegrationTest
 
         // run some tests
         try {
-            List<String> s1 = metaServer.list("/");
-            System.out.println(Arrays.toString(s1.toArray()));
-            List<String> s2 = metaServer.list("/temp/");
-            System.out.println(Arrays.toString(s2.toArray()));
-            String s3 = metaServer.find("/temp");
-            System.out.println(s3);
-            String s4 = metaServer.find("/temp/a");
+            System.out.println("--- TEST CALL ---");
+            String s4 = metaServer.find("/help.txt");
             System.out.println(s4);
         }
         catch (Exception e) {
