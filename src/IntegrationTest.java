@@ -69,8 +69,8 @@ public class IntegrationTest
         // run some tests
         try {
             System.out.println("--- TEST CALL ---");
-            String s4 = metaServer.find("/help.txt");
-            System.out.println(s4);
+//            String s4 = metaServer.find("/help.txt");
+//            System.out.println(s4);
         }
         catch (Exception e) {
             System.err.println("Exception in MetaServer tests: " + e.toString());

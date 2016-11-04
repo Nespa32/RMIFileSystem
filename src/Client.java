@@ -11,9 +11,6 @@ import java.rmi.registry.Registry;
 import java.rmi.registry.LocateRegistry;
 import java.util.Scanner;
 
-import java.io.FileReader;
-import java.io.BufferedReader;
-
 public class Client {
 
     private final Registry registry;
@@ -21,6 +18,7 @@ public class Client {
     private String myPwd;
     private String myUser;
     private String myMachine;
+    private String myDir;
     private String configPath;
     private String cachePath;
     private Map<String, String> config;
@@ -36,12 +34,13 @@ public class Client {
         myPwd = "/";
         myUser = System.getProperty("user.name");
         myMachine = System.getProperty("os.name");
+        myDir = System.getProperty("user.dir");
         // setup config file
-        configPath = System.getProperty("user.dir") + "/apps.conf";
+        configPath =  myDir + "/apps.conf";
         config = new HashMap<>();
         updateConfig();
 
-        cachePath = System.getProperty("user.dir") + "/cache/";
+        cachePath = myDir + "/cache/";
         cleanCache();
     }
 
@@ -62,7 +61,7 @@ public class Client {
                 // Splits str by any number of spaces
                 String[] tokens = str.split(" +");
                 String ProgramPath = tokens[tokens.length - 1];
-                System.out.println(ProgramPath);
+
                 for(String i:tokens) {
                     if(!ProgramPath.equals(i))
                         config.put(i, ProgramPath);
@@ -83,9 +82,7 @@ public class Client {
                  if (!file.isDirectory())
                      file.delete();
          }
-
          catch(Exception e) {
-
              System.err.println(e);
         }
     }
@@ -121,11 +118,32 @@ public class Client {
         String tempPwd = (path.charAt(0) == '/' ? "/" : myPwd);
         String[] pathSplited = path.split("/");
         String absPath = buildPath(tempPwd, pathSplited);
+
         if (absPath.length() == 1 || checkPath(absPath.substring(0, absPath.lastIndexOf('/')), true, false))
             return absPath;
         else
             return absPath.substring(0, absPath.length() - 1);
 
+    }
+
+    // Checks if an absulute path "path" exists.
+
+    public boolean checkPath(String path, boolean isDir, boolean ...wantException) {
+
+        try {
+
+            if (isDir)
+                metaServer.list(path);
+            else
+                metaServer.find(path);
+        }
+        catch (Exception e) {
+
+            if (wantException.length == 0 || wantException[0])
+                System.err.println(e);
+            return false;
+        }
+        return true;
     }
 
     public String getObjectName (String path) {
@@ -143,25 +161,6 @@ public class Client {
         String[] tempList = fileName.split("\\.");
         String extension = tempList[tempList.length -1];
         return extension;
-    }
-
-    // Checks if an absulute path "path" exists.
-    public boolean checkPath(String path, boolean isDir, boolean ...wantException) {
-
-        try {
-
-            if (isDir)
-                metaServer.list(path);
-            else
-                metaServer.find(path);
-        }
-        catch (Exception e) {
-            //System.out.println("Excep");
-            if (wantException.length == 0 || wantException[0])
-                System.err.println(e);
-            return false;
-        }
-        return true;
     }
 
     // Command Functions
@@ -221,8 +220,9 @@ public class Client {
         }
         String a = cmd[1], b = cmd[2]
             , absPathA = buildAbsPath(a), absPathB = buildAbsPath(b);
-        String storageName;
-        StorageServerInterface storageServer;
+        String storageNameA, storageNameB;
+        StorageServerInterface storageServerA = null, storageServerB = null;
+
         if (!checkPath(absPathA, false, false)) {
             System.err.println("Path <" + absPathA + "> not valid");
             return ;
@@ -231,21 +231,28 @@ public class Client {
         byte[] file;
         try {
 
-            storageName = metaServer.find(absPathA);
-            storageServer = (StorageServerInterface)registry.lookup(storageName);
-            file = storageServer.getFile(absPathA);
+            storageNameA = metaServer.find(absPathA);
+            storageServerA = (StorageServerInterface)registry.lookup(storageNameA);
+            file = storageServerA.getFile(absPathA);
+
+            if(checkPath(absPathB, true, false) || checkPath(absPathB, false, false)) {
+                storageNameB = metaServer.find(absPathB);
+                storageServerB = (StorageServerInterface)registry.lookup(storageNameB);
+            }
         }
 
         catch(Exception e) {
             System.err.println(e);
             return;
         }
+
         // Check if the second arg is a valid dir
         if(checkPath(absPathB, true, false)) {
             // Move file to absPathB with the same name
             try {
-                storageServer.createFile(absPathB + getObjectName(absPathA), file);
-                storageServer.delFile(absPathA);
+
+                storageServerB.createFile(absPathB + getObjectName(absPathA), file);
+                storageServerA.delFile(absPathA);
             }
             catch(RemoteException e) {
 
@@ -257,9 +264,9 @@ public class Client {
             // Delete file at absPathB and move the file with the old name
             try {
 
-                storageServer.delFile(absPathA);
-                storageServer.delFile(absPathB);
-                storageServer.createFile(absPathB, file);
+                storageServerA.delFile(absPathA);
+                storageServerB.delFile(absPathB);
+                storageServerB.createFile(absPathB, file);
             }
             catch(Exception e) {
                 System.err.println(e);
@@ -268,10 +275,11 @@ public class Client {
         }
         // Have to create a new file
         else {
+
             try {
 
-                storageServer.createFile(absPathB, file);
-                storageServer.delFile(absPathA);
+                storageServerA.createFile(absPathB, file);
+                storageServerA.delFile(absPathA);
             }
             catch(Exception e) {
                 System.err.println(e);
@@ -288,7 +296,6 @@ public class Client {
             return ;
         }
         String path = cmd[1], absPath = buildAbsPath(path);
-
         if(!checkPath(absPath, false, false))
             System.err.println("Path <" + path + "> is not a valid file path");
 
@@ -335,9 +342,132 @@ public class Client {
         }
 
         catch(Exception e) {
-
             System.err.println(e);
         }
+    }
+
+    public void get(String[] cmd) {
+
+         if (cmd.length != 3) {
+            System.err.println("Expected format mv file1 file2");
+            return ;
+         }
+
+         String a = cmd[1], b = cmd[2]
+             ,absPathA = buildAbsPath(a), absPathB;
+
+         if (b.charAt(0) == '/')
+             absPathB = b;
+         else
+             absPathB = myDir + "/" + b;
+
+         String storageNameA;
+         StorageServerInterface storageServerA;
+
+        byte[] file;
+        try {
+
+            storageNameA = metaServer.find(absPathA);
+            storageServerA = (StorageServerInterface)registry.lookup(storageNameA);
+            file = storageServerA.getFile(absPathA);
+        }
+        catch(Exception e) {
+            System.err.println(e);
+            return;
+        }
+
+        String destPath = absPathB;
+        File dirTest = new File(absPathB);
+
+        if (dirTest.isDirectory())
+            destPath += "/" + getObjectName(absPathA);
+        try {
+
+            FileOutputStream fos = new FileOutputStream(destPath);
+            fos.write(file);
+            fos.close();
+        }
+        catch(Exception e) {
+            System.err.println(e);
+            return;
+        }
+    }
+
+    public void put(String[] cmd) {
+
+         if (cmd.length != 3) {
+            System.err.println("Expected format mv file1 file2");
+            return ;
+        }
+
+         String a = cmd[1], b = cmd[2]
+             , absPathA, absPathB = buildAbsPath(b);
+         System.out.println(absPathB);
+         // Changing local path according if its absolute or relative
+         if (a.charAt(0) == '/')
+             absPathA = a;
+         else
+             absPathA = myDir + "/" + a;
+
+         String storageNameB;
+         StorageServerInterface storageServerB;
+
+         // Getting both the wanted file and the destination SS
+         byte[] file;
+         try {
+
+             Path path = Paths.get(absPathA);
+             file = Files.readAllBytes(path);
+             // Deals with the case where the dest dir/file exists and when the file has to be created
+             if (checkPath(absPathB, true, false) || checkPath(absPathB, false, false)) 
+                 storageNameB = metaServer.find(absPathB);
+             else
+                 storageNameB = metaServer.find(absPathB.substring(0, absPathB.lastIndexOf('/') + 1));
+             storageServerB = (StorageServerInterface)registry.lookup(storageNameB);
+         }
+         catch(Exception e) {
+             System.err.println(e);
+             return;
+         }
+
+         // Check if the second arg is a valid dir
+         if(checkPath(absPathB, true, false)) {
+             // Move file to absPathB with the same name
+             try {
+
+                 storageServerB.createFile(absPathB + getObjectName(absPathA), file);
+             }
+             catch(RemoteException e) {
+
+                 System.err.println(e);
+                 return;
+             }
+         }
+         // Checking if the second arg is a valid file
+        else if(checkPath(absPathB, false, false)) {
+            // Delete file at absPathB and move the file with the old name
+            try {
+
+                storageServerB.delFile(absPathB);
+                storageServerB.createFile(absPathB, file);
+            }
+            catch(Exception e) {
+                System.err.println(e);
+            }
+            return;
+        }
+        // Have to create a new file
+        else {
+            try {
+
+                storageServerB.createFile(absPathB.substring(0, absPathB.lastIndexOf('/') + 1) + getObjectName(absPathB), file);
+            }
+            catch(Exception e) {
+                System.err.println(e);
+            }
+            return;
+        }
+        //
     }
 
     public void exit() {
@@ -350,6 +480,7 @@ public class Client {
         MetaServerInterface metaServer = null;
 
         try {
+
             registry = LocateRegistry.getRegistry();
             metaServer = (MetaServerInterface)registry.lookup("MS");
 
@@ -357,13 +488,12 @@ public class Client {
             client.run();
         }
         catch (Exception e) {
-            // @todo
+            System.err.println(e);
         }
 
     }
 
     void run() {
-        // @todo: commands, etc
         Scanner scanner = new Scanner(System.in);
         while(true) {
             System.out.print(myUser + "@" + myMachine + ":" + myPwd + "$ ");
@@ -386,7 +516,14 @@ public class Client {
             case "open":
                 open(cmd);
                 break;
+            case "put":
+                put(cmd);
+                break;
+            case "get":
+                get(cmd);
+                break;
             case "exit":
+            case "quit":
                 exit();
                 break;
             default:
