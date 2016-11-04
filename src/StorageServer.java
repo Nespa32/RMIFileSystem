@@ -139,7 +139,7 @@ public class StorageServer implements StorageServerInterface {
 
             } else {
 
-                throw new RemoteException("Failed to create directory <" + remotePath + ">");
+                throw new RemoteException("Failed to create file <" + remotePath + ">");
             }
         }
         catch (IOException e) {
