@@ -24,7 +24,6 @@ public class Client {
     private String configPath;
     private String cachePath;
     private Map<String, String> config;
-    
 
     // Colors for ls command
     public static final String ANSI_RESET = "\u001B[0m";
@@ -54,7 +53,7 @@ public class Client {
             // Opening config file and make a scanner
             File configFile = new File(configPath);
             Scanner s = new Scanner(configFile);
-            
+
             while(s.hasNextLine()) {
 
                 String line = s.nextLine();
@@ -78,14 +77,17 @@ public class Client {
     void cleanCache() {
 
          try {
-            
-             Process process = Runtime.getRuntime().exec("rm " + cachePath + "*");
-             System.out.println("rm " + cachePath + "*");
+
+             File dir = new File(cachePath);
+             for(File file: dir.listFiles())
+                 if (!file.isDirectory())
+                     file.delete();
          }
+
          catch(Exception e) {
-            
+
              System.err.println(e);
-        }   
+        }
     }
     // Aux Functions
 
@@ -115,7 +117,7 @@ public class Client {
 
     // Builds the absulute path
     public String buildAbsPath (String path) {
-        
+
         String tempPwd = (path.charAt(0) == '/' ? "/" : myPwd);
         String[] pathSplited = path.split("/");
         String absPath = buildPath(tempPwd, pathSplited);
@@ -123,7 +125,7 @@ public class Client {
             return absPath;
         else
             return absPath.substring(0, absPath.length() - 1);
-                
+
     }
 
     public String getObjectName (String path) {
@@ -131,13 +133,13 @@ public class Client {
         if (path.length() == 0)
             return "";
         String newString = path;
-        if(path.charAt(path.length()-1) == '/') 
+        if(path.charAt(path.length()-1) == '/')
             newString = newString.substring(0, newString.lastIndexOf('/'));
         return newString.substring(newString.lastIndexOf('/') + 1, newString.length());
     }
 
     public String getFileExtension (String fileName) {
-        
+
         String[] tempList = fileName.split("\\.");
         String extension = tempList[tempList.length -1];
         return extension;
@@ -254,7 +256,7 @@ public class Client {
         else if(checkPath(absPathB, false, false)) {
             // Delete file at absPathB and move the file with the old name
             try {
-                
+
                 storageServer.delFile(absPathA);
                 storageServer.delFile(absPathB);
                 storageServer.createFile(absPathB, file);
@@ -267,7 +269,7 @@ public class Client {
         // Have to create a new file
         else {
             try {
-                
+
                 storageServer.createFile(absPathB, file);
                 storageServer.delFile(absPathA);
             }
@@ -286,7 +288,7 @@ public class Client {
             return ;
         }
         String path = cmd[1], absPath = buildAbsPath(path);
-        
+
         if(!checkPath(absPath, false, false))
             System.err.println("Path <" + path + "> is not a valid file path");
 
@@ -316,32 +318,32 @@ public class Client {
 
         String newFile = cachePath + name;
         try {
-            
+
             FileOutputStream fos = new FileOutputStream(newFile);
             fos.write(file);
             fos.close();
         }
-        
+
         catch(Exception e) {
             System.err.println(e);
             return;
         }
 
         try {
-            
+
             Process process = Runtime.getRuntime().exec(extensionPath + " " + newFile);
         }
-        
+
         catch(Exception e) {
-            
+
             System.err.println(e);
-        }   
+        }
     }
 
     public void exit() {
         System.exit(0);
     }
-    
+
     public static void main(String args[]) {
 
         Registry registry = null;
