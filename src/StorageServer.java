@@ -1,3 +1,4 @@
+import java.math.BigInteger;
 import java.rmi.RemoteException;
 import java.rmi.registry.Registry;
 import java.rmi.registry.LocateRegistry;
@@ -7,6 +8,8 @@ import java.nio.file.Path;
 import java.io.File;
 import java.io.IOException;
 import java.io.FileOutputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.lang.Thread;
 import java.lang.Runtime;
@@ -276,6 +279,24 @@ public class StorageServer implements StorageServerInterface {
     private String getLocalPath(String remotePath) {
 
         return remotePath.replaceFirst("^" + remoteMountPath, localDirPath);
+    }
+
+    private String getMD5Sum(byte[] fileBytes) {
+
+        try {
+
+            MessageDigest messageDigest = MessageDigest.getInstance("MD5");
+            messageDigest.reset();
+            messageDigest.update(fileBytes);
+            byte[] md5Hash = messageDigest.digest();
+            String md5Str = new BigInteger(1, md5Hash).toString(16);
+            return md5Str;
+        }
+        catch (NoSuchAlgorithmException e) {
+
+            System.err.println("NoSuchAlgorithmException: " + e.toString());
+            return null;
+        }
     }
 }
 

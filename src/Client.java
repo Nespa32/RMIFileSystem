@@ -1,39 +1,52 @@
 import java.rmi.RemoteException;
 import java.util.*;
-import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.rmi.registry.Registry;
 import java.rmi.registry.LocateRegistry;
 import java.util.Scanner;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.math.BigInteger;
 
 public class Client {
+
+    public static void main(String args[]) {
+
+        try {
+
+            Registry registry = LocateRegistry.getRegistry();
+            MetaServerInterface metaServer = (MetaServerInterface)registry.lookup("MS");
+
+            Client client = new Client(registry, metaServer);
+            client.run();
+        }
+        catch (Exception e) {
+            System.err.println(e);
+        }
+
+    }
 
     private final Registry registry;
     private final MetaServerInterface metaServer;
     private String myPwd;
-    private String myUser;
-    private String myMachine;
     private String myDir;
     private String configPath;
     private String cachePath;
     private Map<String, String> config;
 
     // Colors for ls command
-    public static final String ANSI_RESET = "\u001B[0m";
-    public static final String ANSI_BLUE = "\u001B[34m";
+    private static final String ANSI_RESET = "\u001B[0m";
+    private static final String ANSI_BLUE = "\u001B[34m";
 
-    public Client(Registry _registry, MetaServerInterface _metaServer) {
+    public Client(Registry registry, MetaServerInterface metaServer) {
 
-        registry = _registry;
-        metaServer = _metaServer;
+        this.registry = registry;
+        this.metaServer = metaServer;
         myPwd = "/";
-        myUser = System.getProperty("user.name");
-        myMachine = System.getProperty("os.name");
         myDir = System.getProperty("user.dir");
         // setup config file
         configPath =  myDir + "/apps.conf";
@@ -44,16 +57,61 @@ public class Client {
         cleanCache();
     }
 
-    public void updateConfig() {
+    void run() {
+
+        Scanner scanner = new Scanner(System.in);
+        while(true) {
+
+            String myUser = System.getProperty("user.name");
+            String myMachine = System.getProperty("os.name");
+            System.out.print(myUser + "@" + myMachine + ":" + myPwd + "$ ");
+            String[] cmd = scanner.nextLine().split(" ");
+            switch(cmd[0]) {
+                case "": // empty string case, user pressed ENTER, simply ignore
+                    break;
+                case "pwd":
+                    pwd(cmd);
+                    break;
+                case "ls":
+                    ls(cmd);
+                    break;
+                case "cd":
+                    cd(cmd);
+                    break;
+                case "mv":
+                    mv(cmd);
+                    break;
+                case "open":
+                    open(cmd);
+                    break;
+                case "put":
+                    put(cmd);
+                    break;
+                case "get":
+                    get(cmd);
+                    break;
+                case "exit":
+                case "quit":
+                    exit();
+                    break;
+                default:
+                    System.err.println("Invalid command " + cmd[0]);
+                    break;
+            }
+        }
+    }
+
+    private void updateConfig() {
 
         try {
+
             // Clear existing config hash
             config.clear();
             // Opening config file and make a scanner
             File configFile = new File(configPath);
             Scanner s = new Scanner(configFile);
 
-            while(s.hasNextLine()) {
+            while (s.hasNextLine()) {
 
                 String line = s.nextLine();
                 // Replaces , by /s to ease the split
@@ -62,8 +120,9 @@ public class Client {
                 String[] tokens = str.split(" +");
                 String ProgramPath = tokens[tokens.length - 1];
 
-                for(String i:tokens) {
-                    if(!ProgramPath.equals(i))
+                for(String i : tokens) {
+
+                    if (!ProgramPath.equals(i))
                         config.put(i, ProgramPath);
                 }
             }
@@ -78,7 +137,7 @@ public class Client {
          try {
 
              File dir = new File(cachePath);
-             for(File file: dir.listFiles())
+             for (File file : dir.listFiles())
                  if (!file.isDirectory())
                      file.delete();
          }
@@ -89,7 +148,7 @@ public class Client {
     // Aux Functions
 
     // Returns a path given a pwd and a string of directories to navigate to
-    public String buildPath(String tempPwd, String []remainingPwd){
+    private String buildPath(String tempPwd, String[] remainingPwd) {
 
         int length = remainingPwd.length;
         // Path creation ended
@@ -112,8 +171,8 @@ public class Client {
             return buildPath(tempPwd + nextDir + "/", nextPwd);
     }
 
-    // Builds the absulute path
-    public String buildAbsPath (String path) {
+    // Builds the absolute path
+    public String buildAbsPath(String path) {
 
         String tempPwd = (path.charAt(0) == '/' ? "/" : myPwd);
         String[] pathSplited = path.split("/");
@@ -126,8 +185,7 @@ public class Client {
 
     }
 
-    // Checks if an absulute path "path" exists.
-
+    // Checks if an absolute path "path" exists.
     public boolean checkPath(String path, boolean isDir, boolean ...wantException) {
 
         try {
@@ -146,7 +204,7 @@ public class Client {
         return true;
     }
 
-    public String getObjectName (String path) {
+    private String getObjectName(String path) {
 
         if (path.length() == 0)
             return "";
@@ -156,7 +214,7 @@ public class Client {
         return newString.substring(newString.lastIndexOf('/') + 1, newString.length());
     }
 
-    public String getFileExtension (String fileName) {
+    private String getFileExtension(String fileName) {
 
         String[] tempList = fileName.split("\\.");
         String extension = tempList[tempList.length -1];
@@ -295,53 +353,35 @@ public class Client {
             System.err.println("Expected format open file");
             return ;
         }
+
         String path = cmd[1], absPath = buildAbsPath(path);
-        if(!checkPath(absPath, false, false))
+        if (!checkPath(absPath, false, false))
             System.err.println("Path <" + path + "> is not a valid file path");
 
         // Downloading File
-        String storageName;
-        StorageServerInterface storageServer;
-        byte[] file;
-
         try {
 
-            storageName = metaServer.find(absPath);
-            storageServer = (StorageServerInterface)registry.lookup(storageName);
-            file = storageServer.getFile(absPath);
-        }
+            String storageName = metaServer.find(absPath);
+            StorageServerInterface storageServer = (StorageServerInterface)registry.lookup(storageName);
+            byte[] file = storageServer.getFile(absPath);
 
-        catch(Exception e) {
-            System.err.println(e);
-            return;
-        }
+            // @todo: remove
+            System.out.println("MD5 for file: " + getMD5Sum(file));
 
-        // Getting extension
-        String name = getObjectName(absPath);
-        String extension = getFileExtension(name);
-        String extensionPath = config.get(extension);
+            // Getting extension
+            String name = getObjectName(absPath);
+            String extension = getFileExtension(name);
+            String extensionPath = config.get(extension);
 
-        // Save file to cache
-
-        String newFile = cachePath + name;
-        try {
+            String newFile = cachePath + name;
 
             FileOutputStream fos = new FileOutputStream(newFile);
             fos.write(file);
             fos.close();
+
+            Runtime.getRuntime().exec(extensionPath + " " + newFile);
         }
-
-        catch(Exception e) {
-            System.err.println(e);
-            return;
-        }
-
-        try {
-
-            Process process = Runtime.getRuntime().exec(extensionPath + " " + newFile);
-        }
-
-        catch(Exception e) {
+        catch (Exception e) {
             System.err.println(e);
         }
     }
@@ -474,62 +514,21 @@ public class Client {
         System.exit(0);
     }
 
-    public static void main(String args[]) {
-
-        Registry registry = null;
-        MetaServerInterface metaServer = null;
+    private String getMD5Sum(byte[] fileBytes) {
 
         try {
 
-            registry = LocateRegistry.getRegistry();
-            metaServer = (MetaServerInterface)registry.lookup("MS");
-
-            Client client = new Client(registry, metaServer);
-            client.run();
+            MessageDigest messageDigest = MessageDigest.getInstance("MD5");
+            messageDigest.reset();
+            messageDigest.update(fileBytes);
+            byte[] md5Hash = messageDigest.digest();
+            String md5Str = new BigInteger(1, md5Hash).toString(16);
+            return md5Str;
         }
-        catch (Exception e) {
-            System.err.println(e);
-        }
+        catch (NoSuchAlgorithmException e) {
 
-    }
-
-    void run() {
-        Scanner scanner = new Scanner(System.in);
-        while(true) {
-            System.out.print(myUser + "@" + myMachine + ":" + myPwd + "$ ");
-            String[] cmd = scanner.nextLine().split(" ");
-            switch(cmd[0]) {
-            case "": // empty string case, user pressed ENTER, simply ignore
-                break;
-            case "pwd":
-                pwd(cmd);
-                break;
-            case "ls":
-                ls(cmd);
-                break;
-            case "cd":
-                cd(cmd);
-                break;
-            case "mv":
-                mv(cmd);
-                break;
-            case "open":
-                open(cmd);
-                break;
-            case "put":
-                put(cmd);
-                break;
-            case "get":
-                get(cmd);
-                break;
-            case "exit":
-            case "quit":
-                exit();
-                break;
-            default:
-                System.err.println("Invalid command " + cmd[0]);
-                break;
-            }
+            System.err.println("NoSuchAlgorithmException: " + e.toString());
+            return null;
         }
     }
 }
