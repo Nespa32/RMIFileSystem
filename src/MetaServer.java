@@ -42,7 +42,7 @@ public class MetaServer implements MetaServerInterface {
     {
         objToStorageServer = new HashMap<>();
 
-        rootObj = new FileSystemObject(null, "/", true);
+        rootObj = new FileSystemObject(null, "/", true, null);
         nextStorageServerId = 0;
     }
 
@@ -62,10 +62,16 @@ public class MetaServer implements MetaServerInterface {
     }
 
     @Override
-    public String getMD5(String filePath) throws RemoteException {
+    public String getMD5(String path) throws RemoteException {
 
-        // @todo
-        return null;
+        FileSystemObject obj = getObjectForPath(path);
+        if (obj == null)
+            throw new RemoteException("Object at path <" + path + "> not found");
+
+        if (obj.isDirectory())
+            throw new RemoteException("Object at path <" + path + "> is not a file");
+
+        return obj.getMD5Sum();
     }
 
     @Override
@@ -118,7 +124,7 @@ public class MetaServer implements MetaServerInterface {
             // create new StorageServer root
             String name = splitPath[splitPath.length - 1];
             boolean isDirectory = true;
-            FileSystemObject child = new FileSystemObject(obj, name, isDirectory);
+            FileSystemObject child = new FileSystemObject(obj, name, isDirectory, null);
             obj.addChild(child);
 
             objToStorageServer.put(child, s);
@@ -148,8 +154,6 @@ public class MetaServer implements MetaServerInterface {
     @Override
     public void notifyItemAdd(String path, String md5sum) throws RemoteException {
 
-        // @todo: use md5
-
         String[] splitPath = path.split("/");
         if (splitPath.length == 0)
             throw new RemoteException("Bad path <" + path + ">");
@@ -169,7 +173,7 @@ public class MetaServer implements MetaServerInterface {
         if (obj == null)
             throw new RemoteException("Couldn't find parent directory for item");
 
-        FileSystemObject child = new FileSystemObject(obj, name, isDirectory);
+        FileSystemObject child = new FileSystemObject(obj, name, isDirectory, md5sum);
         obj.addChild(child);
     }
 
@@ -243,18 +247,20 @@ class FileSystemObject implements Comparable<FileSystemObject>
     private String name;
     private boolean isDirectory;
     private Map<String, FileSystemObject> children;
+    private String md5sum;
 
     @Override
     public int compareTo(FileSystemObject other) {
         return this.name.compareTo(other.name);
     }
 
-    public FileSystemObject(FileSystemObject parent, String name, boolean isDirectory) {
+    public FileSystemObject(FileSystemObject parent, String name, boolean isDirectory, String md5sum) {
 
         this.parent = parent;
         this.name = name;
         this.isDirectory = isDirectory;
         this.children = new TreeMap<>();
+        this.md5sum = md5sum;
     }
 
     public void addChild(FileSystemObject child) {
@@ -286,5 +292,9 @@ class FileSystemObject implements Comparable<FileSystemObject>
 
     public boolean isDirectory() {
         return isDirectory;
+    }
+
+    public String getMD5Sum() {
+        return md5sum;
     }
 }
