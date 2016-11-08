@@ -107,7 +107,7 @@ public class StorageServer implements StorageServerInterface {
         File file = new File(localPath);
         if (file.mkdir()) {
             // if it throws, let the exception propagate
-            metaServer.notifyItemAdd(remotePath);
+            metaServer.notifyItemAdd(remotePath, null); // @todo: md5sum
         } else {
 
             throw new RemoteException("Failed to create directory <" + remotePath + ">");
@@ -131,7 +131,7 @@ public class StorageServer implements StorageServerInterface {
             if (file.createNewFile()) {
 
                 // if it throws, let the exception propagate
-                metaServer.notifyItemAdd(remotePath);
+                metaServer.notifyItemAdd(remotePath, null); // @todo: md5sum
 
                 FileOutputStream fos = new FileOutputStream(localPath);
                 fos.write(bytes);
@@ -251,7 +251,7 @@ public class StorageServer implements StorageServerInterface {
 
             try {
                 System.out.println("Pushing <" + remotePath + ">");
-                metaServer.notifyItemAdd(remotePath);
+                metaServer.notifyItemAdd(remotePath, null); // @todo: md5sum
             } catch (RemoteException e) {
                 System.err.println("synchronizeMetaServer - RemoteException: " + e.toString());
             }

@@ -133,7 +133,7 @@ public class Client {
         try {
 
             if (isDir)
-                metaServer.list(path);
+                metaServer.lstat(path);
             else
                 metaServer.find(path);
         }
@@ -183,7 +183,7 @@ public class Client {
         List<String> l;
         try {
 
-            l = metaServer.list(myPwd);
+            l = metaServer.lstat(myPwd);
         }
         catch (Exception e) {
 

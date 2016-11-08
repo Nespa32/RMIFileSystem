@@ -62,7 +62,14 @@ public class MetaServer implements MetaServerInterface {
     }
 
     @Override
-    public List<String> list(String path) throws RemoteException{
+    public String getMD5(String filePath) throws RemoteException {
+
+        // @todo
+        return null;
+    }
+
+    @Override
+    public List<String> lstat(String path) throws RemoteException{
 
         FileSystemObject obj = getObjectForPath(path);
         if (obj == null)
@@ -139,7 +146,9 @@ public class MetaServer implements MetaServerInterface {
     }
 
     @Override
-    public void notifyItemAdd(String path) throws RemoteException {
+    public void notifyItemAdd(String path, String md5sum) throws RemoteException {
+
+        // @todo: use md5
 
         String[] splitPath = path.split("/");
         if (splitPath.length == 0)
