@@ -27,7 +27,6 @@ public class Client {
         catch (Exception e) {
             System.err.println(e);
         }
-
     }
 
     private final Registry registry;
@@ -46,14 +45,14 @@ public class Client {
 
         this.registry = registry;
         this.metaServer = metaServer;
-        myPwd = "/";
-        myDir = System.getProperty("user.dir");
+        this.myPwd = "/";
+        this.myDir = System.getProperty("user.dir");
         // setup config file
-        configPath =  myDir + "/apps.conf";
-        config = new HashMap<>();
-        updateConfig();
+        this.configPath =  myDir + "/apps.conf";
+        this.config = new HashMap<>();
+        this.cachePath = myDir + "/cache/";
 
-        cachePath = myDir + "/cache/";
+        updateConfig();
         cleanCache();
     }
 
@@ -84,11 +83,11 @@ public class Client {
                 case "open":
                     open(cmd);
                     break;
-                case "put":
-                    put(cmd);
+                case "upload":
+                    uploadFile(cmd);
                     break;
-                case "get":
-                    get(cmd);
+                case "download":
+                    downloadFile(cmd);
                     break;
                 case "exit":
                 case "quit":
@@ -141,7 +140,7 @@ public class Client {
                  if (!file.isDirectory())
                      file.delete();
          }
-         catch(Exception e) {
+         catch (Exception e) {
              System.err.println(e);
         }
     }
@@ -209,7 +208,7 @@ public class Client {
         if (path.length() == 0)
             return "";
         String newString = path;
-        if(path.charAt(path.length()-1) == '/')
+        if (path.charAt(path.length()-1) == '/')
             newString = newString.substring(0, newString.lastIndexOf('/'));
         return newString.substring(newString.lastIndexOf('/') + 1, newString.length());
     }
@@ -250,7 +249,7 @@ public class Client {
         }
         // Iterates trough the list and prints the items
         for (String i : l) {
-            if(checkPath(myPwd + i, true, false))
+            if (checkPath(myPwd + i, true, false))
                 System.out.println(ANSI_BLUE + i + " " +  ANSI_RESET);
             else
                 System.out.println(i + " ");
@@ -293,32 +292,31 @@ public class Client {
             storageServerA = (StorageServerInterface)registry.lookup(storageNameA);
             file = storageServerA.getFile(absPathA);
 
-            if(checkPath(absPathB, true, false) || checkPath(absPathB, false, false)) {
+            if (checkPath(absPathB, true, false) || checkPath(absPathB, false, false)) {
                 storageNameB = metaServer.find(absPathB);
                 storageServerB = (StorageServerInterface)registry.lookup(storageNameB);
             }
         }
-
-        catch(Exception e) {
+        catch (Exception e) {
             System.err.println(e);
             return;
         }
 
         // Check if the second arg is a valid dir
-        if(checkPath(absPathB, true, false)) {
+        if (checkPath(absPathB, true, false)) {
             // Move file to absPathB with the same name
             try {
 
                 storageServerB.createFile(absPathB + getObjectName(absPathA), file);
                 storageServerA.delFile(absPathA);
             }
-            catch(RemoteException e) {
+            catch (RemoteException e) {
 
                 System.err.println(e);
             }
         }
         // Checking if the second arg is a valid file
-        else if(checkPath(absPathB, false, false)) {
+        else if (checkPath(absPathB, false, false)) {
             // Delete file at absPathB and move the file with the old name
             try {
 
@@ -326,10 +324,9 @@ public class Client {
                 storageServerB.delFile(absPathB);
                 storageServerB.createFile(absPathB, file);
             }
-            catch(Exception e) {
+            catch (Exception e) {
                 System.err.println(e);
             }
-            return;
         }
         // Have to create a new file
         else {
@@ -339,10 +336,9 @@ public class Client {
                 storageServerA.createFile(absPathB, file);
                 storageServerA.delFile(absPathA);
             }
-            catch(Exception e) {
+            catch (Exception e) {
                 System.err.println(e);
             }
-            return;
         }
         //
     }
@@ -358,15 +354,19 @@ public class Client {
         if (!checkPath(absPath, false, false))
             System.err.println("Path <" + path + "> is not a valid file path");
 
-        // Downloading File
+        // download file
         try {
 
             String storageName = metaServer.find(absPath);
             StorageServerInterface storageServer = (StorageServerInterface)registry.lookup(storageName);
             byte[] file = storageServer.getFile(absPath);
 
-            // @todo: remove
-            System.out.println("MD5 for file: " + getMD5Sum(file));
+            // check file integrity
+            String storageServerMD5 = getMD5Sum(file);
+            String metaServerMD5 = metaServer.getMD5(absPath);
+            if (!storageServerMD5.equals(metaServerMD5))
+                throw new Exception("MD5 integrity check failed! SS: " +
+                        storageServerMD5 + " MS: " + metaServerMD5);
 
             // Getting extension
             String name = getObjectName(absPath);
@@ -386,7 +386,7 @@ public class Client {
         }
     }
 
-    public void get(String[] cmd) {
+    public void downloadFile(String[] cmd) {
 
          if (cmd.length != 3) {
             System.err.println("Expected format mv file1 file2");
@@ -410,8 +410,15 @@ public class Client {
             storageNameA = metaServer.find(absPathA);
             storageServerA = (StorageServerInterface)registry.lookup(storageNameA);
             file = storageServerA.getFile(absPathA);
+
+            // check file integrity
+            String storageServerMD5 = getMD5Sum(file);
+            String metaServerMD5 = metaServer.getMD5(absPathA);
+            if (!storageServerMD5.equals(metaServerMD5))
+                throw new Exception("MD5 integrity check failed! SS: " +
+                        storageServerMD5 + " MS: " + metaServerMD5);
         }
-        catch(Exception e) {
+        catch (Exception e) {
             System.err.println(e);
             return;
         }
@@ -427,13 +434,13 @@ public class Client {
             fos.write(file);
             fos.close();
         }
-        catch(Exception e) {
+        catch (Exception e) {
             System.err.println(e);
             return;
         }
     }
 
-    public void put(String[] cmd) {
+    public void uploadFile(String[] cmd) {
 
          if (cmd.length != 3) {
             System.err.println("Expected format mv file1 file2");
@@ -465,36 +472,35 @@ public class Client {
                  storageNameB = metaServer.find(absPathB.substring(0, absPathB.lastIndexOf('/') + 1));
              storageServerB = (StorageServerInterface)registry.lookup(storageNameB);
          }
-         catch(Exception e) {
+         catch (Exception e) {
              System.err.println(e);
              return;
          }
 
          // Check if the second arg is a valid dir
-         if(checkPath(absPathB, true, false)) {
+         if (checkPath(absPathB, true, false)) {
              // Move file to absPathB with the same name
              try {
 
                  storageServerB.createFile(absPathB + getObjectName(absPathA), file);
              }
-             catch(RemoteException e) {
+             catch (RemoteException e) {
 
                  System.err.println(e);
                  return;
              }
          }
          // Checking if the second arg is a valid file
-        else if(checkPath(absPathB, false, false)) {
+        else if (checkPath(absPathB, false, false)) {
             // Delete file at absPathB and move the file with the old name
             try {
 
                 storageServerB.delFile(absPathB);
                 storageServerB.createFile(absPathB, file);
             }
-            catch(Exception e) {
+            catch (Exception e) {
                 System.err.println(e);
             }
-            return;
         }
         // Have to create a new file
         else {
@@ -502,12 +508,10 @@ public class Client {
 
                 storageServerB.createFile(absPathB.substring(0, absPathB.lastIndexOf('/') + 1) + getObjectName(absPathB), file);
             }
-            catch(Exception e) {
+            catch (Exception e) {
                 System.err.println(e);
             }
-            return;
         }
-        //
     }
 
     public void exit() {
