@@ -1,3 +1,4 @@
+
 import java.rmi.RemoteException;
 import java.util.*;
 import java.nio.file.Files;
@@ -5,20 +6,38 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.rmi.registry.Registry;
-import java.rmi.registry.LocateRegistry;
 import java.util.Scanner;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.math.BigInteger;
 
+import jgroup.core.ExternalGMIService;
+import jgroup.core.GroupManager;
+import jgroup.core.MembershipService;
+import jgroup.core.registry.DependableRegistry;
+import jgroup.core.registry.RegistryFactory;
+
 public class Client {
 
-    public static void main(String args[]) {
+    public static void main(String args[]) throws Exception {
 
         try {
 
-            Registry registry = LocateRegistry.getRegistry();
+            DependableRegistry registry = RegistryFactory.getRegistry();
+
+            GroupManager gm = GroupManager.getGroupManager(this);
+
+            MembershipService membershipService = (MembershipService)gm.getService(MembershipService.class);
+            ExternalGMIService externalGMIService = (ExternalGMIService)gm.getService(ExternalGMIService.class);
+
+            DependableRegistry.RegistryEntry entry = egmis.getRegistryEntry(name);
+            registry.bind("ASD", entry, serverClass, leaseTime)
+
+            String[] l = registry.list();
+            System.out.println("l size: " + l.length);
+            for (String s : l)
+                System.out.println(s);
+
             MetaServerInterface metaServer = (MetaServerInterface)registry.lookup("MS");
 
             Client client = new Client(registry, metaServer);
@@ -26,10 +45,11 @@ public class Client {
         }
         catch (Exception e) {
             System.err.println(e);
+            e.printStackTrace();
         }
     }
 
-    private final Registry registry;
+    private final DependableRegistry registry;
     private final MetaServerInterface metaServer;
     private String myPwd;
     private String myDir;
@@ -41,7 +61,7 @@ public class Client {
     private static final String ANSI_RESET = "\u001B[0m";
     private static final String ANSI_BLUE = "\u001B[34m";
 
-    public Client(Registry registry, MetaServerInterface metaServer) {
+    public Client(DependableRegistry registry, MetaServerInterface metaServer) {
 
         this.registry = registry;
         this.metaServer = metaServer;

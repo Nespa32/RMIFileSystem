@@ -1,53 +1,70 @@
 
-import java.rmi.NotBoundException;
 import java.util.*;
-import java.rmi.registry.Registry;
-import java.rmi.registry.LocateRegistry;
-import java.rmi.server.UnicastRemoteObject;
 import java.rmi.RemoteException;
 
-public class MetaServer implements MetaServerInterface {
+import jgroup.core.*;
+import jgroup.core.protocols.Anycast;
+import jgroup.core.protocols.Multicast;
+import jgroup.core.registry.RegistryService;
 
-    public static void main(String args[]) {
+public class MetaServer
+        implements MetaServerInterface, MembershipListener {
+
+    public static void main(String args[]) throws Exception {
 
         // setup MetaServer
-        try {
+        String metaServerId = args[0];
+        MetaServer metaServer = new MetaServer(metaServerId);
 
-            String metaServerId = "MS";
-            MetaServer s = new MetaServer();
-            MetaServerInterface metaServer = (MetaServerInterface)UnicastRemoteObject.exportObject(s, 0);
-            Registry registry = LocateRegistry.getRegistry();
-            registry.bind(metaServerId, metaServer);
-
-            // remove from Registry on shutdown
-            Runtime.getRuntime().addShutdownHook(new MetaServerShutdownHook(registry, metaServerId));
-
-            System.out.println("MetaServer ready");
-        }
-        catch (Exception e) {
-
-            System.err.println("MetaServer exception: " + e.toString());
-            e.printStackTrace();
-        }
+        System.out.println("MetaServer ready");
     }
 
     // FileSystemObject -> StorageServer ID
     private Map<FileSystemObject, String> objToStorageServer;
     // root directory, i.e '/'
     private FileSystemObject rootObj;
-    // StorageServer ID counter
-    private int nextStorageServerId;
+    // Reference to the partitionable group membership service
+    private MembershipService membershipService;
+    // Reference to the external group method invocation service
+    private ExternalGMIService externalGMIService;
+    // The binding identifier for the servers stub in the dependable registry
+    private IID bindId;
 
-    public MetaServer()
-    {
-        objToStorageServer = new HashMap<>();
+    public MetaServer(String serviceId) throws Exception {
 
-        rootObj = new FileSystemObject(null, "/", true);
-        nextStorageServerId = 0;
+        this.objToStorageServer = new HashMap<>();
+        this.rootObj = new FileSystemObject(null, "/", true);
+
+        GroupManager gm = GroupManager.getGroupManager(this);
+
+        this.membershipService = (MembershipService)gm.getService(MembershipService.class);
+        this.externalGMIService = (ExternalGMIService)gm.getService(ExternalGMIService.class);
+
+        RegistryService registryService = (RegistryService)gm.getService(RegistryService.class);
+
+        // @todo: should we keep using groupId 10?
+        membershipService.join(10);
+        this.bindId = registryService.bind(serviceId, this);
+
+        // remove from Registry on shutdown
+        Runtime.getRuntime().addShutdownHook(new MetaServerShutdownHook(this));
     }
+
+    public void close() throws Exception {
+
+        GroupManager gm = GroupManager.getGroupManager(this);
+        RegistryService registryService = (RegistryService)gm.getService(RegistryService.class);
+
+        registryService.unbind(bindId);
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    // Methods from MetaServerInterface
+    ////////////////////////////////////////////////////////////////////////////////////////////
 
     // methods used by Client
     @Override
+    @Anycast
     public String find(String path) throws RemoteException {
 
         FileSystemObject obj = getObjectForPath(path);
@@ -62,6 +79,7 @@ public class MetaServer implements MetaServerInterface {
     }
 
     @Override
+    @Anycast
     public String getMD5(String filePath) throws RemoteException {
 
         // @todo
@@ -69,6 +87,7 @@ public class MetaServer implements MetaServerInterface {
     }
 
     @Override
+    @Anycast
     public List<String> lstat(String path) throws RemoteException{
 
         FileSystemObject obj = getObjectForPath(path);
@@ -84,10 +103,8 @@ public class MetaServer implements MetaServerInterface {
 
     // methods used by StorageServer
     @Override
-    public String addStorageServer(String mountPath) throws RemoteException {
-
-        String s = String.format("SS_%d", nextStorageServerId);
-        nextStorageServerId += 1;
+    @Multicast
+    public void addStorageServer(String serviceId, String mountPath) throws RemoteException {
 
         boolean isRootPath = mountPath.equals("/");
         boolean isRootSetup = objToStorageServer.containsKey(rootObj);
@@ -95,8 +112,7 @@ public class MetaServer implements MetaServerInterface {
             if (isRootSetup)
                 throw new RemoteException("Root StorageServer is already setup");
 
-            objToStorageServer.put(rootObj, s);
-            return s;
+            objToStorageServer.put(rootObj, serviceId);
         }
         else {
             // root StorageServer has to be the first to mount, others need to retry
@@ -121,12 +137,12 @@ public class MetaServer implements MetaServerInterface {
             FileSystemObject child = new FileSystemObject(obj, name, isDirectory);
             obj.addChild(child);
 
-            objToStorageServer.put(child, s);
-            return s;
+            objToStorageServer.put(child, serviceId);
         }
     }
 
     @Override
+    @Multicast
     public void delStorageServer(String mountPath) throws RemoteException {
 
         FileSystemObject mountObj = getObjectForPath(mountPath);
@@ -146,6 +162,7 @@ public class MetaServer implements MetaServerInterface {
     }
 
     @Override
+    @Multicast
     public void notifyItemAdd(String path, String md5sum) throws RemoteException {
 
         // @todo: use md5
@@ -174,6 +191,7 @@ public class MetaServer implements MetaServerInterface {
     }
 
     @Override
+    @Multicast
     public void notifyItemDelete(String path) throws RemoteException {
 
         FileSystemObject obj = getObjectForPath(path);
@@ -183,6 +201,45 @@ public class MetaServer implements MetaServerInterface {
             throw new RemoteException("Did you really just try to delete root?");
 
         obj.getParent().removeChild(obj);
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    // Methods from MembershipListener
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    @Override
+    // @AllowDuplicateViews
+    public void viewChange(View view)
+    {
+        // System.out.println("  ** HelloServer **" + view);
+
+        try {
+      /*
+       * The time() method is defined in the InternalHello interface and
+       * is marked as a group internal method.  By definition, all group
+       * internal methods will return an array of values instead of a
+       * single value as with standard remote (or external group) method
+       * calls.
+       */
+            // Object[] objs = (Object[]) internalHello.time();
+            // for (int i = 0; i < objs.length; i++)
+            // System.out.println("Time: " + objs[i]);
+            // answer.setTime(objs);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    public void prepareChange()
+    {
+        // System.out.println("The current view is invalid; please await a new view...");
+    }
+
+    @Override
+    public void hasLeft()
+    {
+        // System.out.println("I have left the group");
     }
 
     private FileSystemObject getObjectForPath(String path) {
@@ -218,18 +275,17 @@ public class MetaServer implements MetaServerInterface {
 
 class MetaServerShutdownHook extends Thread {
 
-    private final Registry registry;
-    private final String metaServerId;
+    private final MetaServer metaServer;
 
-    public MetaServerShutdownHook(Registry registry, String metaServerId) {
-        this.registry = registry;
-        this.metaServerId = metaServerId;
+    public MetaServerShutdownHook(MetaServer metaServer) {
+        this.metaServer = metaServer;
     }
 
     @Override
     public void run() {
+
         try {
-            registry.unbind(metaServerId);
+            metaServer.close();
         }
         catch (Exception e) {
             System.out.println("MetaServerShutdownHook - Exception: " + e.toString());

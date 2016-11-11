@@ -1,8 +1,9 @@
-import java.rmi.Remote;
-import java.rmi.RemoteException;
-import java.nio.ByteBuffer;
 
-public interface StorageServerInterface extends Remote {
+import java.rmi.RemoteException;
+
+import jgroup.core.ExternalGMIListener;
+
+public interface StorageServerInterface extends ExternalGMIListener {
 
     //Client Methods
     public void createDir(String path) throws RemoteException;

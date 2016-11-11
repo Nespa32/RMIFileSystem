@@ -17,8 +17,8 @@ pkill -f "java IntegrationTest" || true
 echo "Waiting..."
 sleep 1
 
-echo "Launching new rmiregistry..."
-rmiregistry &
+# echo "Launching new rmiregistry..."
+# rmiregistry &
 
 # compile
 echo "Compiling..."
@@ -34,7 +34,14 @@ javac -d $BUILD_DIR ${SRC_DIR}/IntegrationTest.java \
 
 # launch
 echo "Launching IntegrationTest..."
-java -cp ${BUILD_DIR} IntegrationTest
+java -cp ${BUILD_DIR} \
+    -Djgroup.system.config="file:example-config.xml" \
+    -Djgroup.system.services="file:services.xml" \
+    -Djgroup.system.applications="file:applications.xml" \
+    -Djgroup.log.config="file:log4j.xml" \
+    -Djgroup.log.msgcontent="false" \
+    -Djgroup.log.measures="false" \
+    IntegrationTest
 
 echo "Exiting script..."
 

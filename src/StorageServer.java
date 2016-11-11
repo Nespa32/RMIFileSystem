@@ -1,8 +1,6 @@
+
 import java.math.BigInteger;
 import java.rmi.RemoteException;
-import java.rmi.registry.Registry;
-import java.rmi.registry.LocateRegistry;
-import java.rmi.server.UnicastRemoteObject;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.io.File;
@@ -14,45 +12,34 @@ import java.util.*;
 import java.lang.Thread;
 import java.lang.Runtime;
 
-public class StorageServer implements StorageServerInterface {
+import jgroup.core.ExternalGMIService;
+import jgroup.core.IID;
+import jgroup.core.GroupManager;
+import jgroup.core.MembershipListener;
+import jgroup.core.MembershipService;
+import jgroup.core.View;
+import jgroup.core.protocols.Anycast;
+import jgroup.core.protocols.Multicast;
+import jgroup.core.registry.DependableRegistry;
+import jgroup.core.registry.RegistryFactory;
+import jgroup.core.registry.RegistryService;
 
-    public static void main(String args[]) {
+public class StorageServer
+        implements StorageServerInterface, MembershipListener {
+
+    public static void main(String args[]) throws Exception {
 
         if (args.length < 2) {
             printUsage();
             return;
         }
 
-        String localDirPath = args[0];
-        String remoteMountPath = args[1];
+        String metaServerId = args[0];
+        String serviceId = args[1];
+        String localDirPath = args[2];
+        String remoteMountPath = args[3];
 
-        try {
-            launchStorageServer(localDirPath, remoteMountPath);
-        }
-        catch(Exception e) {
-            System.err.println("StorageServer init exception: " + e.toString());
-            e.printStackTrace();
-        }
-    }
-
-    public static void launchStorageServer(String localDirPath, String remoteMountPath) throws Exception {
-
-        // check if local dir exists
-        File localDir = new File(localDirPath);
-        if (localDir.exists() == false || localDir.isDirectory() == false)
-            throw new Exception("LocalDirPath <" + localDirPath + "> not found");
-
-        Registry registry = LocateRegistry.getRegistry();
-        MetaServerInterface metaServer = (MetaServerInterface)registry.lookup("MS");
-
-        String serviceId = metaServer.addStorageServer(remoteMountPath);
-        StorageServer s = new StorageServer(metaServer, localDirPath, remoteMountPath);
-
-        StorageServerInterface storageServer = (StorageServerInterface)UnicastRemoteObject.exportObject(s, 0);
-        registry.bind(serviceId, storageServer);
-
-        // remove from Registry on shutdown
-        Runtime.getRuntime().addShutdownHook(new StorageServerShutdownHook(registry, s, serviceId));
+        new StorageServer(metaServerId, serviceId, localDirPath, remoteMountPath);
     }
 
     public static void printUsage() {
@@ -62,12 +49,16 @@ public class StorageServer implements StorageServerInterface {
     private final MetaServerInterface metaServer;
     private final String localDirPath;
     private final String remoteMountPath;
+    // Reference to the partitionable group membership service
+    private MembershipService membershipService;
+    // Reference to the external group method invocation service
+    private ExternalGMIService externalGMIService;
+    // The binding identifier for the servers stub in the dependable registry
+    private IID bindId;
 
-    public StorageServer(MetaServerInterface metaServer, String localDirPath,
-                         String remoteMountPath) throws Exception
+    public StorageServer(String metaServerId, String serviceId,
+                         String localDirPath, String remoteMountPath) throws Exception
     {
-        assert(metaServer != null);
-
         // localDir must exist
         File localDir = new File(localDirPath);
         if (localDir.exists() == false || localDir.isDirectory() == false)
@@ -78,25 +69,46 @@ public class StorageServer implements StorageServerInterface {
         if (localDirPath.endsWith("/") == false)
             localDirPath += "/";
 
+        DependableRegistry registry = RegistryFactory.getRegistry();
+        MetaServerInterface metaServer = (MetaServerInterface)registry.lookup(metaServerId);
+
         this.metaServer = metaServer;
         this.localDirPath = localDirPath;
         this.remoteMountPath = remoteMountPath;
 
+        GroupManager gm = GroupManager.getGroupManager(this);
+
+        this.membershipService = (MembershipService)gm.getService(MembershipService.class);
+        this.externalGMIService = (ExternalGMIService)gm.getService(ExternalGMIService.class);
+
+        RegistryService registryService = (RegistryService)gm.getService(RegistryService.class);
+
+        // @todo: should we keep using groupId 10?
+        membershipService.join(10);
+        this.bindId = registryService.bind(serviceId, this);
+
+        // remove from Registry on shutdown
+        Runtime.getRuntime().addShutdownHook(new StorageServerShutdownHook(this));
+
         synchronizeMetaServer();
     }
 
-    public void close() {
+    public void close() throws Exception {
 
-        try {
-            // will also call unbind() on the registry
-            metaServer.delStorageServer(remoteMountPath);
-        }
-        catch (RemoteException e) {
-            System.err.println("Failed to remove StorageServer, exception: " + e.toString());
-        }
+        metaServer.delStorageServer(remoteMountPath);
+
+        GroupManager gm = GroupManager.getGroupManager(this);
+        RegistryService registryService = (RegistryService)gm.getService(RegistryService.class);
+
+        registryService.unbind(bindId);
     }
 
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    // Methods from StorageServerInterface
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
     @Override
+    @Multicast
     public void createDir(String remotePath) throws RemoteException {
 
         // append '/' if needed, it's a directory path
@@ -118,6 +130,7 @@ public class StorageServer implements StorageServerInterface {
     }
 
     @Override
+    @Multicast
     public void createFile(String remotePath, byte[] bytes) throws RemoteException {
 
         if (remotePath.endsWith("/") == true)
@@ -151,6 +164,7 @@ public class StorageServer implements StorageServerInterface {
     }
 
     @Override
+    @Multicast
     public void delDir(String remotePath) throws RemoteException {
 
         // append '/' if needed, it's a directory path
@@ -179,6 +193,7 @@ public class StorageServer implements StorageServerInterface {
     }
 
     @Override
+    @Multicast
     public void delFile(String remotePath) throws RemoteException {
 
         if (remotePath.endsWith("/") == true)
@@ -202,6 +217,7 @@ public class StorageServer implements StorageServerInterface {
     }
 
     @Override
+    @Anycast
     public byte[] getFile(String remotePath) throws RemoteException {
 
         if (remotePath.endsWith("/") == true)
@@ -224,6 +240,45 @@ public class StorageServer implements StorageServerInterface {
 
             throw new RemoteException("IOException: " + e.toString());
         }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    // Methods from MembershipListener
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    @Override
+    // @AllowDuplicateViews
+    public void viewChange(View view)
+    {
+        // System.out.println("  ** HelloServer **" + view);
+
+        try {
+      /*
+       * The time() method is defined in the InternalHello interface and
+       * is marked as a group internal method.  By definition, all group
+       * internal methods will return an array of values instead of a
+       * single value as with standard remote (or external group) method
+       * calls.
+       */
+            // Object[] objs = (Object[]) internalHello.time();
+            // for (int i = 0; i < objs.length; i++)
+                // System.out.println("Time: " + objs[i]);
+            // answer.setTime(objs);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    public void prepareChange()
+    {
+        // System.out.println("The current view is invalid; please await a new view...");
+    }
+
+    @Override
+    public void hasLeft()
+    {
+        // System.out.println("I have left the group");
     }
 
     private void synchronizeMetaServer() {
@@ -302,22 +357,17 @@ public class StorageServer implements StorageServerInterface {
 
 class StorageServerShutdownHook extends Thread {
 
-    private final Registry registry;
-    private final StorageServer s;
-    private final String storageServerId;
+    private final StorageServer storageServer;
 
-    public StorageServerShutdownHook(Registry registry, StorageServer s,
-                                     String storageServerId) {
-        this.registry = registry;
-        this.s = s;
-        this.storageServerId = storageServerId;
+    public StorageServerShutdownHook(StorageServer storageServer) {
+        this.storageServer = storageServer;
     }
 
     @Override
     public void run() {
-        s.close();
+
         try {
-            registry.unbind(storageServerId);
+            storageServer.close();
         }
         catch (Exception e) {
             System.out.println("StorageServerShutdownHook - Exception: " + e.toString());
