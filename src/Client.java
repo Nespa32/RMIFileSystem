@@ -1,5 +1,8 @@
+
 import java.rmi.RemoteException;
-import java.util.*;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Arrays;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -26,6 +29,7 @@ public class Client {
         }
         catch (Exception e) {
             System.err.println(e);
+            e.printStackTrace();
         }
     }
 
@@ -56,47 +60,77 @@ public class Client {
         cleanCache();
     }
 
-    void run() {
+    public void run() throws Exception {
 
         Scanner scanner = new Scanner(System.in);
-        while(true) {
 
-            String myUser = System.getProperty("user.name");
-            String myMachine = System.getProperty("os.name");
-            System.out.print(myUser + "@" + myMachine + ":" + myPwd + "$ ");
+        while (true) {
+
             String[] cmd = scanner.nextLine().split(" ");
-            switch(cmd[0]) {
-                case "": // empty string case, user pressed ENTER, simply ignore
-                    break;
-                case "pwd":
-                    pwd(cmd);
-                    break;
-                case "ls":
-                    ls(cmd);
-                    break;
-                case "cd":
-                    cd(cmd);
-                    break;
-                case "mv":
-                    mv(cmd);
-                    break;
-                case "open":
-                    open(cmd);
-                    break;
-                case "upload":
-                    uploadFile(cmd);
-                    break;
-                case "download":
-                    downloadFile(cmd);
-                    break;
-                case "exit":
-                case "quit":
-                    exit();
-                    break;
-                default:
-                    System.err.println("Invalid command " + cmd[0]);
-                    break;
+
+            try {
+                runSingleCommand(cmd);
             }
+            catch (Exception e) {
+                System.out.println(e);
+            }
+        }
+    }
+
+    private void runSingleCommand(String[] cmd) throws Exception {
+
+        String myUser = System.getProperty("user.name");
+        String myMachine = System.getProperty("os.name");
+        System.out.print(myUser + "@" + myMachine + ":" + myPwd + "$ ");
+
+        switch (cmd[0]) {
+            case "": // empty string case, user pressed ENTER, simply ignore
+                break;
+            case "pwd":
+                System.out.println(myPwd); // one-liner, no need for a method
+                break;
+            case "ls":
+                ls(cmd);
+                break;
+            case "cd":
+                cd(cmd);
+                break;
+            case "mv":
+                mv(cmd);
+                break;
+            case "rm":
+                rm(cmd);
+            case "open":
+                open(cmd);
+                break;
+            case "mkdir":
+                mkdir(cmd);
+                break;
+            case "rmdir":
+                rmdir(cmd);
+                break;
+            case "touch":
+                touch(cmd);
+                break;
+            case "reload":
+                updateConfig();
+                break;
+            case "help":
+                showHelp();
+                break;
+            case "upload":
+                uploadFile(cmd);
+                break;
+            case "download":
+                downloadFile(cmd);
+                break;
+            case "exit":
+            case "quit":
+                exit();
+                break;
+            default:
+                System.err.println("Invalid command " + cmd[0]);
+                break;
         }
     }
 
@@ -131,7 +165,7 @@ public class Client {
         }
     }
 
-    void cleanCache() {
+    private void cleanCache() {
 
          try {
 
@@ -171,7 +205,7 @@ public class Client {
     }
 
     // Builds the absolute path
-    public String buildAbsPath(String path) {
+    private String buildAbsPath(String path) {
 
         String tempPwd = (path.charAt(0) == '/' ? "/" : myPwd);
         String[] pathSplited = path.split("/");
@@ -181,11 +215,18 @@ public class Client {
             return absPath;
         else
             return absPath.substring(0, absPath.length() - 1);
+    }
 
+    private String getParentForPath(String path) {
+
+        if (path.endsWith("/")) // directory path, removing trailing '/'
+            path = path.substring(0, path.length() - 1);
+
+        return path.substring(0, path.lastIndexOf('/'));
     }
 
     // Checks if an absolute path "path" exists.
-    public boolean checkPath(String path, boolean isDir, boolean ...wantException) {
+    private boolean checkPath(String path, boolean isDir, boolean ...wantException) {
 
         try {
 
@@ -200,6 +241,7 @@ public class Client {
                 System.err.println(e);
             return false;
         }
+
         return true;
     }
 
@@ -207,9 +249,11 @@ public class Client {
 
         if (path.length() == 0)
             return "";
+
         String newString = path;
         if (path.charAt(path.length()-1) == '/')
             newString = newString.substring(0, newString.lastIndexOf('/'));
+
         return newString.substring(newString.lastIndexOf('/') + 1, newString.length());
     }
 
@@ -220,16 +264,13 @@ public class Client {
         return extension;
     }
 
-    // Command Functions
+    private StorageServerInterface getStorageServerForPath(String path) throws Exception {
 
-    public void pwd(String[] cmd) {
-
-        if (cmd.length != 1) {
-            System.err.println("pwd doesn't have any arguments");
-            return ;
-        }
-        System.out.println(myPwd);
+        String storageServerId = metaServer.find(path);
+        return (StorageServerInterface)registry.lookup(storageServerId);
     }
+
+    // Command Functions
 
     public void ls(String[] cmd) {
 
@@ -248,8 +289,10 @@ public class Client {
             System.err.println(e);
             return;
         }
+
         // Iterates trough the list and prints the items
         for (String i : l) {
+
             if (checkPath(myPwd + i, true, false))
                 System.out.println(ANSI_BLUE + i + " " +  ANSI_RESET);
             else
@@ -263,6 +306,7 @@ public class Client {
             System.err.println("Expected format cd dir");
             return ;
         }
+
         // Checking if the dir path is relative or absolute
         String absPath = buildAbsPath(cmd[1]);
 
@@ -276,8 +320,10 @@ public class Client {
             System.err.println("Expected format mv file1 file2");
             return ;
         }
-        String a = cmd[1], b = cmd[2]
-            , absPathA = buildAbsPath(a), absPathB = buildAbsPath(b);
+
+        String absPathA = buildAbsPath(cmd[1]);
+        String absPathB = buildAbsPath(cmd[2]);
+
         String storageNameA, storageNameB;
         StorageServerInterface storageServerA = null, storageServerB = null;
 
@@ -344,7 +390,18 @@ public class Client {
         //
     }
 
-    public void open(String[] cmd) {
+    private void rm(String[] cmd) throws Exception {
+
+        if (cmd.length != 2)
+            throw new Exception("Expected format: rm file");
+
+        String absPath = buildAbsPath(cmd[1]);
+        StorageServerInterface storageServer = getStorageServerForPath(absPath);
+
+        storageServer.delFile(absPath);
+    }
+
+    private void open(String[] cmd) {
 
         if (cmd.length != 2) {
             System.err.println("Expected format open file");
@@ -387,12 +444,64 @@ public class Client {
         }
     }
 
-    public void downloadFile(String[] cmd) {
+    public void mkdir(String[] cmd) throws Exception {
 
-         if (cmd.length != 3) {
-            System.err.println("Expected format mv file1 file2");
-            return ;
-         }
+        if (cmd.length != 2)
+            throw new Exception("Expected format: mkdir $path");
+
+        String absPath = buildAbsPath(cmd[1]);
+        String parentPath = getParentForPath(absPath);
+        StorageServerInterface storageServer = getStorageServerForPath(parentPath);
+
+        storageServer.createDir(absPath);
+    }
+
+    private void rmdir(String[] cmd) throws Exception {
+
+        if (cmd.length != 2)
+            throw new Exception("Expected format: rmdir $path");
+
+        String absPath = buildAbsPath(cmd[1]);
+        StorageServerInterface storageServer = getStorageServerForPath(absPath);
+
+        storageServer.delDir(absPath);
+    }
+
+    private void touch(String[] cmd) throws Exception {
+
+        if (cmd.length != 2)
+            throw new Exception("Expected format: touch $path");
+
+        String absPath = buildAbsPath(cmd[1]);
+        String parentPath = getParentForPath(absPath);
+        StorageServerInterface storageServer = getStorageServerForPath(parentPath);
+
+        storageServer.createFile(absPath, new byte[0]);
+    }
+
+    private void showHelp() {
+
+        System.out.println("Available commands:");
+        System.out.println("- 'help'                            show this message");
+        System.out.println("- 'pwd'                             show current path");
+        System.out.println("- 'ls'                              list files in current directory");
+        System.out.println("- 'cd $path'                        change directory to path");
+        System.out.println("- 'mv $file $path'                  moves file to path");
+        System.out.println("- 'rm $file'                        delete files");
+        System.out.println("- 'open $file'                      opens file locally with program specified in apps.conf");
+        System.out.println("- 'mkdir $dir'                      creates directory");
+        System.out.println("- 'rmdir $dir'                      deletes empty directory");
+        System.out.println("- 'touch $file'                     creates empty file");
+        System.out.println("- 'reload'                          reloads apps.conf");
+        System.out.println("- 'upload $localPath $path'         uploads local file to path");
+        System.out.println("- 'download $path $localPath'       downloads file to local path");
+        System.out.println("- 'exit' 'quit'                     exits console");
+    }
+
+    public void downloadFile(String[] cmd) throws Exception {
+
+         if (cmd.length != 3)
+            throw new Exception("Expected format: download file1 file2");
 
          String a = cmd[1], b = cmd[2]
              ,absPathA = buildAbsPath(a), absPathB;
