@@ -271,23 +271,12 @@ public class Client {
 
     // Command Functions
 
-    public void ls(String[] cmd) {
+    public void ls(String[] cmd) throws Exception {
 
-        if (cmd.length != 1) {
-            System.err.println("ls doesn't have any arguments");
-            return ;
-        }
+        if (cmd.length != 1)
+            throw new Exception("Expected format: ls");
 
-        String[] l;
-        try {
-
-            l = metaServer.lstat(myPwd);
-        }
-        catch (Exception e) {
-
-            System.err.println(e);
-            return;
-        }
+        String[] l = metaServer.lstat(myPwd);
 
         // Iterates trough the list and prints the items
         for (String i : l) {
@@ -299,12 +288,10 @@ public class Client {
         }
     }
 
-    public void cd(String[] cmd) {
+    public void cd(String[] cmd) throws Exception {
 
-        if (cmd.length != 2) {
-            System.err.println("Expected format cd dir");
-            return ;
-        }
+        if (cmd.length != 2)
+            throw new Exception("Expected format: rm DIR");
 
         // Checking if the dir path is relative or absolute
         String absPath = buildAbsPath(cmd[1]);
@@ -313,12 +300,10 @@ public class Client {
             myPwd = absPath;
     }
 
-    public void mv(String[] cmd) {
+    public void mv(String[] cmd) throws Exception {
 
-        if (cmd.length != 3) {
-            System.err.println("Expected format mv file1 file2");
-            return ;
-        }
+        if (cmd.length != 3)
+            throw new Exception("Expected format: mv file1 file2");
 
         String absPathA = buildAbsPath(cmd[1]);
         String absPathB = buildAbsPath(cmd[2]);
@@ -326,67 +311,38 @@ public class Client {
         String storageNameA, storageNameB;
         StorageServerInterface storageServerA = null, storageServerB = null;
 
-        if (!checkPath(absPathA, false, false)) {
-            System.err.println("Path <" + absPathA + "> not valid");
-            return ;
-        }
+        if (!checkPath(absPathA, false, false))
+            throw new Exception("Path <" + absPathA + "> not valid");
 
         byte[] file;
-        try {
+        storageNameA = metaServer.find(absPathA);
+        storageServerA = (StorageServerInterface)registry.lookup(storageNameA);
+        file = storageServerA.getFile(absPathA);
 
-            storageNameA = metaServer.find(absPathA);
-            storageServerA = (StorageServerInterface)registry.lookup(storageNameA);
-            file = storageServerA.getFile(absPathA);
-
-            if (checkPath(absPathB, true, false) || checkPath(absPathB, false, false)) {
-                storageNameB = metaServer.find(absPathB);
-                storageServerB = (StorageServerInterface)registry.lookup(storageNameB);
-            }
-        }
-        catch (Exception e) {
-            System.err.println(e);
-            return;
+        if (checkPath(absPathB, true, false) || checkPath(absPathB, false, false)) {
+            storageNameB = metaServer.find(absPathB);
+            storageServerB = (StorageServerInterface)registry.lookup(storageNameB);
         }
 
         // Check if the second arg is a valid dir
         if (checkPath(absPathB, true, false)) {
             // Move file to absPathB with the same name
-            try {
-
-                storageServerB.createFile(absPathB + getObjectName(absPathA), file);
-                storageServerA.delFile(absPathA);
-            }
-            catch (RemoteException e) {
-
-                System.err.println(e);
-            }
+            storageServerB.createFile(absPathB + getObjectName(absPathA), file);
+            storageServerA.delFile(absPathA);
         }
         // Checking if the second arg is a valid file
         else if (checkPath(absPathB, false, false)) {
             // Delete file at absPathB and move the file with the old name
-            try {
-
-                storageServerA.delFile(absPathA);
-                storageServerB.delFile(absPathB);
-                storageServerB.createFile(absPathB, file);
-            }
-            catch (Exception e) {
-                System.err.println(e);
-            }
+            storageServerA.delFile(absPathA);
+            storageServerB.delFile(absPathB);
+            storageServerB.createFile(absPathB, file);
         }
         // Have to create a new file
         else {
 
-            try {
-
-                storageServerA.createFile(absPathB, file);
-                storageServerA.delFile(absPathA);
-            }
-            catch (Exception e) {
-                System.err.println(e);
-            }
+            storageServerA.createFile(absPathB, file);
+            storageServerA.delFile(absPathA);
         }
-        //
     }
 
     private void rm(String[] cmd) throws Exception {
@@ -400,47 +356,39 @@ public class Client {
         storageServer.delFile(absPath);
     }
 
-    private void open(String[] cmd) {
+    private void open(String[] cmd) throws Exception {
 
-        if (cmd.length != 2) {
-            System.err.println("Expected format open file");
-            return ;
-        }
+        if (cmd.length != 2)
+            throw new Exception("Expected format: open file");
 
         String path = cmd[1], absPath = buildAbsPath(path);
         if (!checkPath(absPath, false, false))
-            System.err.println("Path <" + path + "> is not a valid file path");
+            throw new Exception("Path <" + path + "> is not a valid file path");
 
         // download file
-        try {
+        String storageName = metaServer.find(absPath);
+        StorageServerInterface storageServer = (StorageServerInterface)registry.lookup(storageName);
+        byte[] file = storageServer.getFile(absPath);
 
-            String storageName = metaServer.find(absPath);
-            StorageServerInterface storageServer = (StorageServerInterface)registry.lookup(storageName);
-            byte[] file = storageServer.getFile(absPath);
+        // check file integrity
+        String storageServerMD5 = Util.getMD5Sum(file);
+        String metaServerMD5 = metaServer.getMD5(absPath);
+        if (!storageServerMD5.equals(metaServerMD5))
+            throw new Exception("MD5 integrity check failed! SS: " +
+                                storageServerMD5 + " MS: " + metaServerMD5);
 
-            // check file integrity
-            String storageServerMD5 = Util.getMD5Sum(file);
-            String metaServerMD5 = metaServer.getMD5(absPath);
-            if (!storageServerMD5.equals(metaServerMD5))
-                throw new Exception("MD5 integrity check failed! SS: " +
-                        storageServerMD5 + " MS: " + metaServerMD5);
+        // Getting extension
+        String name = getObjectName(absPath);
+        String extension = getFileExtension(name);
+        String extensionPath = config.get(extension);
 
-            // Getting extension
-            String name = getObjectName(absPath);
-            String extension = getFileExtension(name);
-            String extensionPath = config.get(extension);
+        String newFile = cachePath + name;
 
-            String newFile = cachePath + name;
+        FileOutputStream fos = new FileOutputStream(newFile);
+        fos.write(file);
+        fos.close();
 
-            FileOutputStream fos = new FileOutputStream(newFile);
-            fos.write(file);
-            fos.close();
-
-            Runtime.getRuntime().exec(extensionPath + " " + newFile);
-        }
-        catch (Exception e) {
-            System.err.println(e);
-        }
+        Runtime.getRuntime().exec(extensionPath + " " + newFile);
     }
 
     public void mkdir(String[] cmd) throws Exception {
@@ -499,62 +447,42 @@ public class Client {
 
     public void downloadFile(String[] cmd) throws Exception {
 
-         if (cmd.length != 3)
+        if (cmd.length != 3)
             throw new Exception("Expected format: download file1 file2");
 
-         String a = cmd[1], b = cmd[2]
+        String a = cmd[1], b = cmd[2]
              ,absPathA = buildAbsPath(a), absPathB;
 
-         if (b.charAt(0) == '/')
-             absPathB = b;
-         else
-             absPathB = myDir + "/" + b;
+        if (b.charAt(0) == '/')
+            absPathB = b;
+        else
+            absPathB = myDir + "/" + b;
 
-         String storageNameA;
-         StorageServerInterface storageServerA;
+        StorageServerInterface storageServerA = getStorageServerForPath(absPathA);
+        byte[] file = storageServerA.getFile(absPathA);
 
-        byte[] file;
-        try {
-
-            storageNameA = metaServer.find(absPathA);
-            storageServerA = (StorageServerInterface)registry.lookup(storageNameA);
-            file = storageServerA.getFile(absPathA);
-
-            // check file integrity
-            String storageServerMD5 = Util.getMD5Sum(file);
-            String metaServerMD5 = metaServer.getMD5(absPathA);
-            if (!storageServerMD5.equals(metaServerMD5))
-                throw new Exception("MD5 integrity check failed! SS: " +
-                        storageServerMD5 + " MS: " + metaServerMD5);
-        }
-        catch (Exception e) {
-            System.err.println(e);
-            return;
-        }
+        // check file integrity
+        String storageServerMD5 = Util.getMD5Sum(file);
+        String metaServerMD5 = metaServer.getMD5(absPathA);
+        if (!storageServerMD5.equals(metaServerMD5))
+            throw new Exception("MD5 integrity check failed! SS: " +
+                                storageServerMD5 + " MS: " + metaServerMD5);
 
         String destPath = absPathB;
         File dirTest = new File(absPathB);
 
         if (dirTest.isDirectory())
             destPath += "/" + getObjectName(absPathA);
-        try {
 
-            FileOutputStream fos = new FileOutputStream(destPath);
-            fos.write(file);
-            fos.close();
-        }
-        catch (Exception e) {
-            System.err.println(e);
-            return;
-        }
+        FileOutputStream fos = new FileOutputStream(destPath);
+        fos.write(file);
+        fos.close();
     }
 
-    public void uploadFile(String[] cmd) {
+    public void uploadFile(String[] cmd) throws Exception {
 
-         if (cmd.length != 3) {
-            System.err.println("Expected format mv file1 file2");
-            return ;
-        }
+         if (cmd.length != 3)
+             throw new Exception("Expected format: mv file1 file2");
 
          String a = cmd[1], b = cmd[2]
              , absPathA, absPathB = buildAbsPath(b);
@@ -569,57 +497,30 @@ public class Client {
 
          // Getting both the wanted file and the destination SS
          byte[] file;
-         try {
 
-             Path path = Paths.get(absPathA);
-             file = Files.readAllBytes(path);
+         Path path = Paths.get(absPathA);
+         file = Files.readAllBytes(path);
              // Deals with the case where the dest dir/file exists and when the file has to be created
-             if (checkPath(absPathB, true, false) || checkPath(absPathB, false, false)) 
-                 storageNameB = metaServer.find(absPathB);
-             else
-                 storageNameB = metaServer.find(absPathB.substring(0, absPathB.lastIndexOf('/') + 1));
-             storageServerB = (StorageServerInterface)registry.lookup(storageNameB);
-         }
-         catch (Exception e) {
-             System.err.println(e);
-             return;
-         }
+         if (checkPath(absPathB, true, false) || checkPath(absPathB, false, false)) 
+             storageNameB = metaServer.find(absPathB);
+         else
+             storageNameB = metaServer.find(absPathB.substring(0, absPathB.lastIndexOf('/') + 1));
+         storageServerB = (StorageServerInterface)registry.lookup(storageNameB);
 
          // Check if the second arg is a valid dir
-         if (checkPath(absPathB, true, false)) {
+         if (checkPath(absPathB, true, false))
              // Move file to absPathB with the same name
-             try {
-
-                 storageServerB.createFile(absPathB + getObjectName(absPathA), file);
-             }
-             catch (RemoteException e) {
-
-                 System.err.println(e);
-                 return;
-             }
-         }
+             storageServerB.createFile(absPathB + getObjectName(absPathA), file);
          // Checking if the second arg is a valid file
-        else if (checkPath(absPathB, false, false)) {
-            // Delete file at absPathB and move the file with the old name
-            try {
-
-                storageServerB.delFile(absPathB);
-                storageServerB.createFile(absPathB, file);
-            }
-            catch (Exception e) {
-                System.err.println(e);
-            }
+         else if (checkPath(absPathB, false, false)) {
+             // Delete file at absPathB and move the file with the old name
+             storageServerB.delFile(absPathB);
+             storageServerB.createFile(absPathB, file);
         }
         // Have to create a new file
-        else {
-            try {
+        else
+            storageServerB.createFile(absPathB.substring(0, absPathB.lastIndexOf('/') + 1) + getObjectName(absPathB), file);
 
-                storageServerB.createFile(absPathB.substring(0, absPathB.lastIndexOf('/') + 1) + getObjectName(absPathB), file);
-            }
-            catch (Exception e) {
-                System.err.println(e);
-            }
-        }
     }
 
     public void exit() {

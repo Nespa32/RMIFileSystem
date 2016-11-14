@@ -8,7 +8,8 @@ CLASSES = \
 	$(SRC_DIR)/MetaServerInterface.java \
 	$(SRC_DIR)/StorageServer.java \
 	$(SRC_DIR)/StorageServerInterface.java \
-    $(SRC_DIR)/Client.java
+    $(SRC_DIR)/Client.java \
+    $(SRC_DIR)/Util.java
 
 default:
 	$(shell mkdir -p $(BUILD_DIR))
