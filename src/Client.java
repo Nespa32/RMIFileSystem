@@ -1,3 +1,4 @@
+
 import java.rmi.RemoteException;
 import java.util.Map;
 import java.util.HashMap;
@@ -10,9 +11,6 @@ import java.io.FileOutputStream;
 import java.rmi.registry.Registry;
 import java.rmi.registry.LocateRegistry;
 import java.util.Scanner;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.math.BigInteger;
 
 public class Client {
 
@@ -421,7 +419,7 @@ public class Client {
             byte[] file = storageServer.getFile(absPath);
 
             // check file integrity
-            String storageServerMD5 = getMD5Sum(file);
+            String storageServerMD5 = Util.getMD5Sum(file);
             String metaServerMD5 = metaServer.getMD5(absPath);
             if (!storageServerMD5.equals(metaServerMD5))
                 throw new Exception("MD5 integrity check failed! SS: " +
@@ -523,7 +521,7 @@ public class Client {
             file = storageServerA.getFile(absPathA);
 
             // check file integrity
-            String storageServerMD5 = getMD5Sum(file);
+            String storageServerMD5 = Util.getMD5Sum(file);
             String metaServerMD5 = metaServer.getMD5(absPathA);
             if (!storageServerMD5.equals(metaServerMD5))
                 throw new Exception("MD5 integrity check failed! SS: " +
@@ -626,23 +624,5 @@ public class Client {
 
     public void exit() {
         System.exit(0);
-    }
-
-    private String getMD5Sum(byte[] fileBytes) {
-
-        try {
-
-            MessageDigest messageDigest = MessageDigest.getInstance("MD5");
-            messageDigest.reset();
-            messageDigest.update(fileBytes);
-            byte[] md5Hash = messageDigest.digest();
-            String md5Str = new BigInteger(1, md5Hash).toString(16);
-            return md5Str;
-        }
-        catch (NoSuchAlgorithmException e) {
-
-            System.err.println("NoSuchAlgorithmException: " + e.toString());
-            return null;
-        }
     }
 }
