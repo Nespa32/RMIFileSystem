@@ -1,6 +1,8 @@
 
-import java.rmi.NotBoundException;
-import java.util.*;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.TreeMap;
+import java.util.Set;
 import java.rmi.registry.Registry;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.server.UnicastRemoteObject;
@@ -26,7 +28,7 @@ public class MetaServer implements MetaServerInterface {
         }
         catch (Exception e) {
 
-            System.err.println("MetaServer exception: " + e.toString());
+            System.err.println(e);
             e.printStackTrace();
         }
     }
@@ -75,7 +77,7 @@ public class MetaServer implements MetaServerInterface {
     }
 
     @Override
-    public List<String> lstat(String path) throws RemoteException{
+    public String[] lstat(String path) throws RemoteException{
 
         FileSystemObject obj = getObjectForPath(path);
         if (obj == null)
@@ -85,7 +87,7 @@ public class MetaServer implements MetaServerInterface {
             throw new RemoteException("Object at path <" + path + "> is not a directory");
 
         Set<String> set = obj.getChildren();
-        return new ArrayList<>(set);
+        return set.toArray(new String[set.size()]);
     }
 
     // methods used by StorageServer
@@ -236,7 +238,9 @@ class MetaServerShutdownHook extends Thread {
             registry.unbind(metaServerId);
         }
         catch (Exception e) {
-            System.out.println("MetaServerShutdownHook - Exception: " + e.toString());
+
+            System.out.println(e);
+            e.printStackTrace();
         }
     }
 }

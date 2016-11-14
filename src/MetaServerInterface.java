@@ -1,4 +1,4 @@
-import java.util.List;
+
 import java.rmi.Remote;
 import java.rmi.RemoteException;
 
@@ -6,7 +6,8 @@ public interface MetaServerInterface extends Remote {
     // Client Methods
     public String find(String path) throws RemoteException;
     public String getMD5(String filePath) throws RemoteException;
-    public List<String> lstat(String path) throws RemoteException;
+    public String[] lstat(String path) throws RemoteException;
+
     // Storage Server Methods
     // returns new Storage Server ID, used in RMI registry
     public String addStorageServer(String mountPath) throws RemoteException;

@@ -1,3 +1,4 @@
+
 import java.math.BigInteger;
 import java.rmi.RemoteException;
 import java.rmi.registry.Registry;
@@ -10,7 +11,7 @@ import java.io.IOException;
 import java.io.FileOutputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.*;
+import java.util.LinkedList;
 import java.lang.Thread;
 import java.lang.Runtime;
 
@@ -29,8 +30,9 @@ public class StorageServer implements StorageServerInterface {
         try {
             launchStorageServer(localDirPath, remoteMountPath);
         }
-        catch(Exception e) {
-            System.err.println("StorageServer init exception: " + e.toString());
+        catch (Exception e) {
+
+            System.err.println(e);
             e.printStackTrace();
         }
     }
@@ -170,13 +172,10 @@ public class StorageServer implements StorageServerInterface {
         if (files.length > 0)
             throw new RemoteException("Directory is not empty");
 
-        if (file.delete()) {
-            // if it throws, let the exception propagate
-            metaServer.notifyItemDelete(remotePath);
-        } else {
-
+        if (file.delete())
+            metaServer.notifyItemDelete(remotePath); // if it throws, let the exception propagate
+        else
             throw new RemoteException("Failed to delete directory <" + remotePath + ">");
-        }
     }
 
     @Override

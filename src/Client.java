@@ -237,7 +237,8 @@ public class Client {
             System.err.println("ls doesn't have any arguments");
             return ;
         }
-        List<String> l;
+
+        String[] l;
         try {
 
             l = metaServer.lstat(myPwd);
