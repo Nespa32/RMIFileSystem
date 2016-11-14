@@ -14,7 +14,7 @@ cd ../build
 echo "Killing rmiregistry..."
 pkill rmiregistry || true
 
-# kill previous IntegrationTest
+# kill previous MetaServer
 echo "Killing MetaServer..."
 pkill -f "java MetaServer" || true
 
@@ -25,7 +25,7 @@ echo "Launching new rmiregistry..."
 rmiregistry &
 
 # launch
-echo "Launching IntegrationTest..."
+echo "Launching MetaServer..."
 java -cp . MetaServer
 
 echo "Exiting script..."
