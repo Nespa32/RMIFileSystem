@@ -145,7 +145,18 @@ public class MetaServer implements MetaServerInterface {
             FileSystemObject obj = entry.getKey();
 
             if (mountObj == obj) {
-                objToStorageServer.remove(entry.getKey());
+
+                // @todo: fail if subtree contains another StorageServer
+                // remove entire subtree
+                if (rootObj != obj)
+                    obj.getParent().removeChild(obj);
+                else {
+
+                    // don't remove root obj, just all children
+                    obj.removeAllChildren();
+                }
+
+                objToStorageServer.remove(obj);
                 return;
             }
         }
@@ -155,6 +166,10 @@ public class MetaServer implements MetaServerInterface {
 
     @Override
     public void notifyItemAdd(String path, String md5sum) throws RemoteException {
+
+        // ignore root, it exists by default
+        if (path.equals("/"))
+            return;
 
         String[] splitPath = path.split("/");
         if (splitPath.length == 0)
@@ -181,6 +196,10 @@ public class MetaServer implements MetaServerInterface {
 
     @Override
     public void notifyItemDelete(String path) throws RemoteException {
+
+        // ignore root, it exists by default
+        if (path.equals("/"))
+            return;
 
         FileSystemObject obj = getObjectForPath(path);
         if (obj == null)
@@ -273,6 +292,10 @@ class FileSystemObject implements Comparable<FileSystemObject>
 
     public void removeChild(FileSystemObject child) {
         children.remove(child.getName());
+    }
+
+    public void removeAllChildren() {
+        children.clear();
     }
 
     public Set<String> getChildren() {

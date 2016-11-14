@@ -228,7 +228,6 @@ public class StorageServer implements StorageServerInterface {
 
     private void synchronizeMetaServer() {
 
-        System.out.println("synchronizeMetaServer call");
         // BFS through the directory tree
         LinkedList<File> files = new LinkedList<>();
         files.addLast(new File(localDirPath));
@@ -253,12 +252,16 @@ public class StorageServer implements StorageServerInterface {
             remotePath = remotePath.replaceAll("//", "/");
 
             try {
-                System.out.println("Pushing <" + remotePath + ">");
+                // skip root, created by default
+                if (remotePath.equals("/"))
+                    continue;
+
                 String md5sum = null;
                 if (f.isDirectory() == false) {
                     byte[] file = getFile(remotePath);
                     md5sum = getMD5Sum(file);
                 }
+
                 metaServer.notifyItemAdd(remotePath, md5sum);
             } catch (RemoteException e) {
                 System.err.println("synchronizeMetaServer - RemoteException: " + e.toString());
@@ -320,8 +323,9 @@ class StorageServerShutdownHook extends Thread {
 
     @Override
     public void run() {
-        s.close();
+
         try {
+            s.close();
             registry.unbind(storageServerId);
         }
         catch (Exception e) {
