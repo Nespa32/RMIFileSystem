@@ -3,8 +3,12 @@
 # exit on error
 set -e
 
-mkdir -p build
-cd build
+# move to dir where bash script is
+DIR="$(dirname "$(readlink -f "$0")")"
+cd $DIR
+
+# move to dir
+cd ../build
 
 # kill previous rmiregistry instance
 echo "Killing rmiregistry..."
@@ -20,21 +24,9 @@ sleep 1
 echo "Launching new rmiregistry..."
 rmiregistry &
 
-# compile
-echo "Compiling..."
-
-SRC_DIR="../src/"
-BUILD_DIR="."
-
-javac -d $BUILD_DIR ${SRC_DIR}/IntegrationTest.java \
-        ${SRC_DIR}/MetaServer.java \
-        ${SRC_DIR}/MetaServerInterface.java \
-        ${SRC_DIR}/StorageServer.java \
-        ${SRC_DIR}/StorageServerInterface.java
-
 # launch
 echo "Launching IntegrationTest..."
-java -cp ${BUILD_DIR} IntegrationTest
+java -cp . IntegrationTest
 
 echo "Exiting script..."
 
