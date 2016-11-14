@@ -1,4 +1,3 @@
-
 import java.rmi.RemoteException;
 import java.util.Map;
 import java.util.HashMap;
@@ -66,6 +65,10 @@ public class Client {
 
         while (true) {
 
+            String myUser = System.getProperty("user.name");
+            String myMachine = System.getProperty("os.name");
+            System.out.print(myUser + "@" + myMachine + ":" + myPwd + "$ ");
+
             String[] cmd = scanner.nextLine().split(" ");
 
             try {
@@ -73,15 +76,12 @@ public class Client {
             }
             catch (Exception e) {
                 System.out.println(e);
+                e.printStackTrace();
             }
         }
     }
 
     private void runSingleCommand(String[] cmd) throws Exception {
-
-        String myUser = System.getProperty("user.name");
-        String myMachine = System.getProperty("os.name");
-        System.out.print(myUser + "@" + myMachine + ":" + myPwd + "$ ");
 
         switch (cmd[0]) {
             case "": // empty string case, user pressed ENTER, simply ignore
@@ -100,6 +100,7 @@ public class Client {
                 break;
             case "rm":
                 rm(cmd);
+                break;
             case "open":
                 open(cmd);
                 break;
@@ -559,7 +560,6 @@ public class Client {
 
          String a = cmd[1], b = cmd[2]
              , absPathA, absPathB = buildAbsPath(b);
-         System.out.println(absPathB);
          // Changing local path according if its absolute or relative
          if (a.charAt(0) == '/')
              absPathA = a;
